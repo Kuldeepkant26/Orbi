@@ -96,27 +96,26 @@ const CallContext = createContext<CallContextType>({
 // They help two devices find each other across NAT/firewalls.
 const ICE_SERVERS = {
   iceServers: [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun.relay.metered.ca:80' },
     {
-      urls: 'turn:relay1.expressturn.com:3478',
-      username: 'efUWSOENSMN7W0O7XE',
-      credential: 'sBfBFpXDfAGXEOvP',
+      urls: 'turn:global.relay.metered.ca:80',
+      username: '3b11dbd97ebc15bf756e44cb',
+      credential: '2iAc4MuXxNVARrw/',
     },
     {
-      urls: 'turn:openrelay.metered.ca:80',
-      username: 'openrelayproject',
-      credential: 'openrelayproject',
+      urls: 'turn:global.relay.metered.ca:80?transport=tcp',
+      username: '3b11dbd97ebc15bf756e44cb',
+      credential: '2iAc4MuXxNVARrw/',
     },
     {
-      urls: 'turn:openrelay.metered.ca:443',
-      username: 'openrelayproject',
-      credential: 'openrelayproject',
+      urls: 'turn:global.relay.metered.ca:443',
+      username: '3b11dbd97ebc15bf756e44cb',
+      credential: '2iAc4MuXxNVARrw/',
     },
     {
-      urls: 'turn:openrelay.metered.ca:443?transport=tcp',
-      username: 'openrelayproject',
-      credential: 'openrelayproject',
+      urls: 'turns:global.relay.metered.ca:443?transport=tcp',
+      username: '3b11dbd97ebc15bf756e44cb',
+      credential: '2iAc4MuXxNVARrw/',
     },
   ],
 };
@@ -135,14 +134,12 @@ export function CallProvider({ children }: { children: ReactNode }) {
   const [isMuted, setIsMuted] = useState(false);
   const [isCameraOff, setIsCameraOff] = useState(false);
 
-  // We store the peer connection in a ref so it persists across renders
-  // without causing re-renders when it changes internally.
   const peerConnection = useRef<RTCPeerConnection | null>(null);
-
-  // Store the incoming offer temporarily while we wait for the user to accept
   const pendingOffer = useRef<RTCSessionDescription | null>(null);
-  // Store who called us (for when the user taps "Accept")
   const pendingCaller = useRef<CallParticipant | null>(null);
+  // ICE candidates that arrive before remote description is set get queued here
+  const iceCandidateQueue = useRef<RTCIceCandidate[]>([]);
+  const remoteDescSet = useRef(false);
 
   // ── Get camera + mic stream ──────────────────────────────────────────────────
   // On iOS Simulator, requesting audio crashes the app because the simulator
@@ -184,6 +181,15 @@ export function CallProvider({ children }: { children: ReactNode }) {
     return pc;
   };
 
+  const flushIceCandidates = async () => {
+    const pc = peerConnection.current;
+    if (!pc) return;
+    for (const candidate of iceCandidateQueue.current) {
+      try { await pc.addIceCandidate(candidate); } catch (_) {}
+    }
+    iceCandidateQueue.current = [];
+  };
+
   // ── Cleanup helper — stops streams and closes peer connection ─────────────────
   const cleanup = () => {
     if (localStream) {
@@ -202,6 +208,8 @@ export function CallProvider({ children }: { children: ReactNode }) {
     setIsCameraOff(false);
     pendingOffer.current = null;
     pendingCaller.current = null;
+    iceCandidateQueue.current = [];
+    remoteDescSet.current = false;
   };
 
   // ── Socket event listeners ────────────────────────────────────────────────────
@@ -222,6 +230,8 @@ export function CallProvider({ children }: { children: ReactNode }) {
       await peerConnection.current.setRemoteDescription(
         new RTCSessionDescription(answer)
       );
+      remoteDescSet.current = true;
+      await flushIceCandidates();
       setCallStatus('connected');
     });
 
@@ -236,16 +246,14 @@ export function CallProvider({ children }: { children: ReactNode }) {
       cleanup();
     });
 
-    // ICE candidate from the other side — add it to our peer connection
+    // ICE candidate from the other side — queue if remote desc not set yet
     socket.on('ice_candidate', async ({ candidate }: any) => {
-      if (peerConnection.current && candidate) {
-        try {
-          await peerConnection.current.addIceCandidate(
-            new RTCIceCandidate(candidate)
-          );
-        } catch (e) {
-          // Ignore ICE errors — they're common and non-fatal
-        }
+      if (!candidate) return;
+      const iceCandidate = new RTCIceCandidate(candidate);
+      if (peerConnection.current && remoteDescSet.current) {
+        try { await peerConnection.current.addIceCandidate(iceCandidate); } catch (_) {}
+      } else {
+        iceCandidateQueue.current.push(iceCandidate);
       }
     });
 
@@ -305,6 +313,8 @@ export function CallProvider({ children }: { children: ReactNode }) {
 
     // Set the caller's offer as the remote description
     await pc.setRemoteDescription(pendingOffer.current);
+    remoteDescSet.current = true;
+    await flushIceCandidates();
 
     // Create our answer
     const answer = await pc.createAnswer();
