@@ -74,6 +74,7 @@ io.on('connection', (socket) => {
         sender: userId,
         receiver: receiverId,
         text,
+        
       });
 
       // Deliver to receiver if they are online
