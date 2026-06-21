@@ -6,11 +6,9 @@ import React, {
   ReactNode,
 } from 'react';
 import { io, Socket } from 'socket.io-client';
-import { Platform } from 'react-native';
 import { useAuth } from './AuthContext';
 
-const SERVER_URL =
-  Platform.OS === 'android' ? 'http://10.0.2.2:8080' : 'http://192.168.31.112:8080';
+const SERVER_URL = 'https://orbi-production.up.railway.app';
 
 type SocketContextType = {
   socket: Socket | null;

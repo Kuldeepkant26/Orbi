@@ -1,9 +1,4 @@
-import { Platform } from 'react-native';
-
-const BASE_URL =
-  Platform.OS === 'android'
-    ? 'http://10.0.2.2:8080/api/auth'
-    : 'http://192.168.31.112:8080/api/auth';
+const BASE_URL = 'https://orbi-production.up.railway.app/api/auth';
 
 export type AuthUser = {
   id: string;
