@@ -21,6 +21,7 @@ export type Message = {
   isEdited: boolean;
   isDeleted: boolean;
   createdAt: string;
+  
 };
 
 // Fetch list of all users (except yourself)
