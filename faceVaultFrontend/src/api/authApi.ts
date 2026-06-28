@@ -4,6 +4,11 @@ export type AuthUser = {
   id: string;
   name: string;
   email: string;
+  // Social fields added for Orbi. Older sessions may not have these yet, so
+  // they're optional and the app treats missing values as empty.
+  username?: string;
+  avatarUrl?: string;
+  bio?: string;
 };
 
 type AuthResponse = {

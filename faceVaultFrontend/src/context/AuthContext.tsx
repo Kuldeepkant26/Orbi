@@ -15,6 +15,9 @@ type AuthContextType = {
   isLoading: boolean;
   login: (user: AuthUser, token: string) => Promise<void>;
   logout: () => Promise<void>;
+  // Update the stored user in place (e.g. after editing the profile) so the
+  // whole app sees the new name / avatar / bio without logging in again.
+  updateUser: (updates: Partial<AuthUser>) => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -53,6 +56,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setToken(null);
   };
 
+  const updateUser = async (updates: Partial<AuthUser>) => {
+    setUser(prev => {
+      if (!prev) return prev;
+      const merged = { ...prev, ...updates };
+      // Persist so the change survives an app restart.
+      AsyncStorage.setItem('auth_user', JSON.stringify(merged));
+      return merged;
+    });
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -62,6 +75,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isLoading,
         login,
         logout,
+        updateUser,
       }}>
       {children}
     </AuthContext.Provider>

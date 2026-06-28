@@ -9,17 +9,17 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { AuthStackParamList } from '../../App';
 import { apiLogin } from '../api/authApi';
 import { useAuth } from '../context/AuthContext';
+import OrbiLogo from '../components/OrbiLogo';
+import { colors } from '../theme/colors';
+import { spacing, radius } from '../theme/spacing';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'Login'>;
-
-const { height } = Dimensions.get('window');
 
 export default function LoginScreen({ navigation }: Props) {
   const { login } = useAuth();
@@ -56,60 +56,48 @@ export default function LoginScreen({ navigation }: Props) {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}>
 
-          {/* Logo */}
-          <View style={styles.logoSection}>
-            <View style={styles.logoBox}>
-              <Text style={styles.logoEmoji}>🔐</Text>
-            </View>
-            <Text style={styles.appName}>FaceVault</Text>
-            <Text style={styles.tagline}>Secure your precious memories</Text>
+          {/* Brand */}
+          <View style={styles.brand}>
+            <OrbiLogo size={56} />
+            <Text style={styles.tagline}>Share your world, beautifully.</Text>
           </View>
 
-          {/* Form Card */}
-          <View style={styles.card}>
-            <Text style={styles.formTitle}>Welcome Back</Text>
-            <Text style={styles.formSubtitle}>Sign in to your account</Text>
-
+          {/* Form */}
+          <View style={styles.form}>
             {error ? (
               <View style={styles.errorBox}>
                 <Text style={styles.errorText}>{error}</Text>
               </View>
             ) : null}
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Email Address</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="you@example.com"
-                placeholderTextColor="#9CA3AF"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-                value={email}
-                onChangeText={setEmail}
-              />
-            </View>
+            <TextInput
+              style={styles.input}
+              placeholder="Email"
+              placeholderTextColor={colors.textFaint}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+              value={email}
+              onChangeText={setEmail}
+            />
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Password</Text>
-              <View style={styles.passwordRow}>
-                <TextInput
-                  style={styles.passwordInput}
-                  placeholder="Enter your password"
-                  placeholderTextColor="#9CA3AF"
-                  secureTextEntry={!showPassword}
-                  autoCapitalize="none"
-                  value={password}
-                  onChangeText={setPassword}
-                />
-                <TouchableOpacity
-                  style={styles.eyeBtn}
-                  onPress={() => setShowPassword(p => !p)}>
-                  <Text style={styles.eyeText}>
-                    {showPassword ? 'Hide' : 'Show'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
+            <View style={styles.passwordRow}>
+              <TextInput
+                style={styles.passwordInput}
+                placeholder="Password"
+                placeholderTextColor={colors.textFaint}
+                secureTextEntry={!showPassword}
+                autoCapitalize="none"
+                value={password}
+                onChangeText={setPassword}
+              />
+              <TouchableOpacity
+                style={styles.eyeBtn}
+                onPress={() => setShowPassword(p => !p)}>
+                <Text style={styles.eyeText}>
+                  {showPassword ? 'Hide' : 'Show'}
+                </Text>
+              </TouchableOpacity>
             </View>
 
             <TouchableOpacity
@@ -118,14 +106,14 @@ export default function LoginScreen({ navigation }: Props) {
               disabled={loading}
               activeOpacity={0.85}>
               {loading ? (
-                <ActivityIndicator color="#FFFFFF" />
+                <ActivityIndicator color={colors.white} />
               ) : (
                 <Text style={styles.buttonText}>Log In</Text>
               )}
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.forgotBtn}>
-              <Text style={styles.forgotText}>Forgot Password?</Text>
+              <Text style={styles.forgotText}>Forgot password?</Text>
             </TouchableOpacity>
           </View>
 
@@ -133,7 +121,7 @@ export default function LoginScreen({ navigation }: Props) {
           <View style={styles.footer}>
             <Text style={styles.footerText}>Don't have an account? </Text>
             <TouchableOpacity onPress={() => navigation.navigate('Signup')}>
-              <Text style={styles.footerLink}>Sign Up</Text>
+              <Text style={styles.footerLink}>Sign up</Text>
             </TouchableOpacity>
           </View>
 
@@ -146,173 +134,117 @@ export default function LoginScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: colors.background,
   },
   kav: {
     flex: 1,
   },
   scroll: {
     flexGrow: 1,
-    paddingHorizontal: 24,
-    paddingBottom: 32,
-  },
-  logoSection: {
-    alignItems: 'center',
-    paddingTop: height * 0.06,
-    paddingBottom: 32,
-  },
-  logoBox: {
-    width: 80,
-    height: 80,
-    borderRadius: 22,
-    backgroundColor: '#4F46E5',
-    alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 14,
-    shadowColor: '#4F46E5',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.35,
-    shadowRadius: 16,
-    elevation: 10,
+    paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.xxl,
   },
-  logoEmoji: {
-    fontSize: 38,
-  },
-  appName: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#0F172A',
-    letterSpacing: 0.5,
+  brand: {
+    alignItems: 'center',
+    marginBottom: spacing.xxl,
   },
   tagline: {
     fontSize: 14,
-    color: '#64748B',
-    marginTop: 4,
+    color: colors.textMuted,
+    marginTop: spacing.md,
   },
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    padding: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 20,
-    elevation: 5,
-  },
-  formTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#0F172A',
-    marginBottom: 4,
-  },
-  formSubtitle: {
-    fontSize: 14,
-    color: '#64748B',
-    marginBottom: 20,
+  form: {
+    width: '100%',
   },
   errorBox: {
-    backgroundColor: '#FEF2F2',
-    borderWidth: 1,
-    borderColor: '#FECACA',
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 16,
+    backgroundColor: '#FEECEC',
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginBottom: spacing.lg,
   },
   errorText: {
-    color: '#DC2626',
+    color: colors.danger,
     fontSize: 13,
     fontWeight: '500',
   },
-  inputGroup: {
-    marginBottom: 16,
-  },
-  label: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#374151',
-    marginBottom: 6,
-  },
   input: {
-    height: 50,
-    borderWidth: 1.5,
-    borderColor: '#E2E8F0',
-    borderRadius: 12,
-    paddingHorizontal: 16,
+    height: 52,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.lg,
     fontSize: 15,
-    color: '#0F172A',
-    backgroundColor: '#F8FAFC',
+    color: colors.ink,
+    backgroundColor: colors.offWhite,
+    marginBottom: spacing.md,
   },
   passwordRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: '#E2E8F0',
-    borderRadius: 12,
-    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    backgroundColor: colors.offWhite,
     overflow: 'hidden',
+    marginBottom: spacing.lg,
   },
   passwordInput: {
     flex: 1,
-    height: 50,
-    paddingHorizontal: 16,
+    height: 52,
+    paddingHorizontal: spacing.lg,
     fontSize: 15,
-    color: '#0F172A',
+    color: colors.ink,
   },
   eyeBtn: {
-    paddingHorizontal: 16,
-    height: 50,
+    paddingHorizontal: spacing.lg,
+    height: 52,
     alignItems: 'center',
     justifyContent: 'center',
   },
   eyeText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#4F46E5',
+    color: colors.ink,
   },
   button: {
     height: 52,
-    backgroundColor: '#4F46E5',
-    borderRadius: 14,
+    backgroundColor: colors.ink,
+    borderRadius: radius.md,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 8,
-    shadowColor: '#4F46E5',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
   },
   buttonDisabled: {
-    opacity: 0.7,
+    opacity: 0.6,
   },
   buttonText: {
-    color: '#FFFFFF',
+    color: colors.white,
     fontSize: 16,
     fontWeight: '700',
     letterSpacing: 0.3,
   },
   forgotBtn: {
     alignItems: 'center',
-    marginTop: 16,
+    marginTop: spacing.lg,
   },
   forgotText: {
     fontSize: 13,
-    color: '#4F46E5',
+    color: colors.textMuted,
     fontWeight: '600',
   },
   footer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 28,
+    marginTop: spacing.xxl,
   },
   footerText: {
     fontSize: 14,
-    color: '#64748B',
+    color: colors.textMuted,
   },
   footerLink: {
     fontSize: 14,
-    color: '#4F46E5',
+    color: colors.ink,
     fontWeight: '700',
   },
 });

@@ -3,6 +3,8 @@ const router = express.Router();
 const { authenticate } = require('../utils/middlewares');
 const {
   getAllUsers,
+  getProfile,
+  updateMyProfile,
   getMessages,
   sendMessage,
   editMessage,
@@ -13,9 +15,15 @@ const {
 router.use(authenticate);
 
 router.get('/', getAllUsers);                          // list all users
-router.get('/messages/:otherUserId', getMessages);    // get conversation
-router.post('/messages', sendMessage);                // send a message
-router.put('/messages/:messageId', editMessage);      // edit a message
-router.delete('/messages/:messageId', deleteMessage); // delete a message
+router.put('/me', updateMyProfile);                    // update my profile (avatar/bio/name)
+
+// Messaging (kept as-is). These literal "messages" paths must be declared
+// before the "/:userId/profile" param route so they aren't captured by it.
+router.get('/messages/:otherUserId', getMessages);     // get conversation
+router.post('/messages', sendMessage);                 // send a message
+router.put('/messages/:messageId', editMessage);       // edit a message
+router.delete('/messages/:messageId', deleteMessage);  // delete a message
+
+router.get('/:userId/profile', getProfile);            // public profile of a user
 
 module.exports = router;

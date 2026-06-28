@@ -4,7 +4,10 @@ export type UserItem = {
   _id: string;
   name: string;
   email: string;
-  createdAt: string;
+  username?: string;
+  avatarUrl?: string;
+  bio?: string;
+  createdAt?: string;
 };
 
 export type Message = {

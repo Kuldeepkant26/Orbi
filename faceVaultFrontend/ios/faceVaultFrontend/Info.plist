@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-	<string>faceVaultFrontend</string>
+	<string>Orbi</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -34,11 +34,13 @@
 		<true/>
 	</dict>
 	<key>NSCameraUsageDescription</key>
-	<string>FaceVault needs camera access for video calls</string>
+	<string>Orbi needs camera access to take photos for your posts and profile.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Orbi needs photo library access to choose pictures for your posts and profile.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>We n</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>FaceVault needs microphone access for video calls</string>
+	<string>Orbi needs microphone access for calls.</string>
 	<key>RCTNewArchEnabled</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>

@@ -1,174 +1,233 @@
-import React from 'react';
-import { View, Text, StyleSheet, SafeAreaView } from 'react-native';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import React, { useState, useCallback, useEffect } from 'react';
+import {
+  View,
+  Text,
+  FlatList,
+  StyleSheet,
+  TouchableOpacity,
+  RefreshControl,
+  ActivityIndicator,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { AppStackParamList } from '../../App';
 import { useAuth } from '../context/AuthContext';
-import FloatingNav from '../components/FloatingNav';
+import { apiFetchFeed, apiLikePost, Post } from '../api/postsApi';
+import PostCard from '../components/PostCard';
+import OrbiLogo from '../components/OrbiLogo';
+import Icon from '../components/Icon';
+import { colors } from '../theme/colors';
+import { spacing } from '../theme/spacing';
 
-type Props = NativeStackScreenProps<AppStackParamList, 'Home'>;
+// The Home tab = the FEED. Top bar with the Orbi logo and a DM (messages) icon
+// on the right, then a scrollable list of posts from people you follow + your
+// own posts.
 
-export default function HomeScreen({ navigation }: Props) {
-  const { user, logout } = useAuth();
+type Nav = NativeStackNavigationProp<AppStackParamList>;
 
-  // Avatar initial
-  const initial = user?.name?.charAt(0).toUpperCase() ?? '?';
+export default function HomeScreen() {
+  const navigation = useNavigation<Nav>();
+  const { token } = useAuth();
+
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [error, setError] = useState('');
+
+  // Load the first page (or reload on pull-to-refresh).
+  const loadFeed = useCallback(async () => {
+    try {
+      setError('');
+      const data = await apiFetchFeed(token!, 1);
+      setPosts(data);
+      setPage(1);
+      setHasMore(data.length > 0);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [token]);
+
+  // Load the next page when the user scrolls near the bottom.
+  const loadMore = useCallback(async () => {
+    if (loadingMore || !hasMore || loading) return;
+    setLoadingMore(true);
+    try {
+      const next = page + 1;
+      const data = await apiFetchFeed(token!, next);
+      if (data.length === 0) {
+        setHasMore(false);
+      } else {
+        setPosts(prev => [...prev, ...data]);
+        setPage(next);
+      }
+    } catch {
+      // Silently ignore pagination errors; pull-to-refresh can recover.
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [token, page, hasMore, loadingMore, loading]);
+
+  // Reload the feed every time the Home tab comes into focus, so new posts
+  // (e.g. one you just created) show up.
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', loadFeed);
+    return unsubscribe;
+  }, [navigation, loadFeed]);
+
+  // Like / unlike. PostCard updates its heart instantly; here we just fire the
+  // network request.
+  const handleToggleLike = (post: Post, nextLiked: boolean) => {
+    apiLikePost(token!, post._id, nextLiked).catch(() => {
+      // If it fails, a refresh will resync the real state.
+    });
+  };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.safe} edges={['top']}>
+        <TopBar onOpenMessages={() => navigation.navigate('Users')} />
+        <View style={styles.center}>
+          <ActivityIndicator color={colors.ink} />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <View style={styles.container}>
+    <SafeAreaView style={styles.safe} edges={['top']}>
+      <TopBar onOpenMessages={() => navigation.navigate('Users')} />
 
-        {/* Header */}
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.greeting}>Welcome back,</Text>
-            <Text style={styles.name}>{user?.name} 👋</Text>
+      <FlatList
+        data={posts}
+        keyExtractor={item => item._id}
+        renderItem={({ item }) => (
+          <PostCard
+            post={item}
+            onToggleLike={handleToggleLike}
+            onOpenComments={p => navigation.navigate('Comments', { postId: p._id })}
+            onOpenProfile={userId => navigation.navigate('UserProfile', { userId })}
+            onMessage={p =>
+              navigation.navigate('Chat', {
+                otherUser: { _id: p.author._id, name: p.author.name, email: '' },
+              })
+            }
+          />
+        )}
+        ItemSeparatorComponent={() => <View style={styles.separator} />}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => {
+              setRefreshing(true);
+              loadFeed();
+            }}
+            tintColor={colors.ink}
+          />
+        }
+        onEndReached={loadMore}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={
+          loadingMore ? (
+            <ActivityIndicator
+              color={colors.textMuted}
+              style={{ marginVertical: spacing.lg }}
+            />
+          ) : null
+        }
+        ListEmptyComponent={
+          <View style={styles.empty}>
+            {error ? (
+              <>
+                <Text style={styles.emptyText}>{error}</Text>
+                <TouchableOpacity onPress={loadFeed} style={styles.retryBtn}>
+                  <Text style={styles.retryText}>Try again</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <Text style={styles.emptyTitle}>Your feed is empty</Text>
+                <Text style={styles.emptyText}>
+                  Follow people or create your first post to get started.
+                </Text>
+              </>
+            )}
           </View>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{initial}</Text>
-          </View>
-        </View>
-
-        {/* Quick-stats cards */}
-        <View style={styles.cardRow}>
-          <View style={[styles.card, styles.cardPurple]}>
-            <Text style={styles.cardIcon}>💬</Text>
-            <Text style={styles.cardLabel}>Chats</Text>
-          </View>
-          <View style={[styles.card, styles.cardBlue]}>
-            <Text style={styles.cardIcon}>👥</Text>
-            <Text style={styles.cardLabel}>People</Text>
-          </View>
-          <View style={[styles.card, styles.cardGreen]}>
-            <Text style={styles.cardIcon}>🔒</Text>
-            <Text style={styles.cardLabel}>Secure</Text>
-          </View>
-        </View>
-
-        {/* Info block */}
-        <View style={styles.infoBlock}>
-          <Text style={styles.infoTitle}>FaceVault</Text>
-          <Text style={styles.infoSub}>
-            A private, end-to-end messaging app.{'\n'}
-            Use the menu below to navigate.
-          </Text>
-        </View>
-      </View>
-
-      {/*
-        Floating navigation menu — tapping "+" expands options:
-        Profile, People, and Logout
-      */}
-      <FloatingNav
-        items={[
-          {
-            label: 'Log Out',
-            icon: '🚪',
-            onPress: logout,
-          },
-          {
-            label: 'People',
-            icon: '👥',
-            onPress: () => navigation.navigate('Users'),
-          },
-          {
-            label: 'Profile',
-            icon: '👤',
-            onPress: () => navigation.navigate('Profile'),
-          },
-        ]}
+        }
       />
     </SafeAreaView>
+  );
+}
+
+// The top bar shown above the feed.
+function TopBar({ onOpenMessages }: { onOpenMessages: () => void }) {
+  return (
+    <View style={styles.topBar}>
+      <OrbiLogo size={30} />
+      <TouchableOpacity onPress={onOpenMessages} style={styles.dmBtn}>
+        <Icon name="paper-plane-outline" size={24} color={colors.ink} />
+      </TouchableOpacity>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: colors.background,
   },
-  container: {
-    flex: 1,
-    padding: 24,
-  },
-  // ── Header ──────────────────────────────────────────────────────────────────
-  header: {
+  topBar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 28,
-    marginTop: 8,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
   },
-  greeting: {
-    fontSize: 14,
-    color: '#64748B',
-    fontWeight: '500',
+  dmBtn: {
+    padding: spacing.xs,
   },
-  name: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: '#0F172A',
-    marginTop: 2,
-  },
-  avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#4F46E5',
+  center: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#4F46E5',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
   },
-  avatarText: {
-    color: '#fff',
-    fontSize: 20,
-    fontWeight: '700',
+  separator: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.border,
   },
-  // ── Stat cards ───────────────────────────────────────────────────────────────
-  cardRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 28,
-  },
-  card: {
-    flex: 1,
-    borderRadius: 18,
-    paddingVertical: 20,
+  empty: {
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    paddingTop: 120,
+    paddingHorizontal: spacing.xl,
   },
-  cardPurple: { backgroundColor: '#4F46E5' },
-  cardBlue: { backgroundColor: '#0EA5E9' },
-  cardGreen: { backgroundColor: '#10B981' },
-  cardIcon: { fontSize: 26, marginBottom: 6 },
-  cardLabel: { color: '#fff', fontSize: 12, fontWeight: '700', letterSpacing: 0.5 },
-  // ── Info ─────────────────────────────────────────────────────────────────────
-  infoBlock: {
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    padding: 22,
-    shadowColor: '#94A3B8',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    elevation: 3,
-  },
-  infoTitle: {
+  emptyTitle: {
     fontSize: 18,
-    fontWeight: '800',
-    color: '#0F172A',
-    marginBottom: 8,
+    fontWeight: '700',
+    color: colors.ink,
+    marginBottom: spacing.sm,
   },
-  infoSub: {
+  emptyText: {
     fontSize: 14,
-    color: '#64748B',
-    lineHeight: 22,
+    color: colors.textMuted,
+    textAlign: 'center',
+  },
+  retryBtn: {
+    marginTop: spacing.lg,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.md,
+    backgroundColor: colors.ink,
+    borderRadius: 12,
+  },
+  retryText: {
+    color: colors.white,
+    fontWeight: '700',
   },
 });

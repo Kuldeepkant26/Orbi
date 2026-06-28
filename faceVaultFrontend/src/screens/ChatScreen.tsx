@@ -15,7 +15,6 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { AppStackParamList } from '../../App';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
-import { useCall } from '../context/CallContext';
 import { apiFetchMessages, Message } from '../api/usersApi';
 
 type Props = NativeStackScreenProps<AppStackParamList, 'Chat'>;
@@ -24,7 +23,6 @@ export default function ChatScreen({ route, navigation }: Props) {
   const { otherUser } = route.params;
   const { user, token } = useAuth();
   const { socket } = useSocket();
-  const { startCall } = useCall();
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
@@ -47,21 +45,29 @@ export default function ChatScreen({ route, navigation }: Props) {
     })();
   }, [token, otherUser._id]);
 
-  // Set nav header title
+  // Set nav header title.
+  //
+  // NOTE: Video calling is intentionally DISABLED for now. We keep the button
+  // visible but greyed out and non-functional (it just shows a small notice).
+  // The call wiring (startCall / CallContext) is left intact so this can be
+  // re-enabled later by restoring the onPress to startCall(...).
   useEffect(() => {
     navigation.setOptions({
       title: otherUser.name,
       headerRight: () => (
         <TouchableOpacity
           style={styles.callHeaderBtn}
+          disabled
           onPress={() =>
-            startCall({ userId: otherUser._id, name: otherUser.name })
+            Alert.alert('Calls are off', 'Video calling is disabled for now.')
           }>
-          <Text style={styles.callHeaderIcon}>📹</Text>
+          <Text style={[styles.callHeaderIcon, styles.callHeaderIconDisabled]}>
+            📹
+          </Text>
         </TouchableOpacity>
       ),
     });
-  }, [navigation, otherUser, startCall]);
+  }, [navigation, otherUser]);
 
   // ── Mark messages as read when screen opens ───────────────────────────────
   useEffect(() => {
@@ -515,6 +521,9 @@ const styles = StyleSheet.create({
   },
   callHeaderIcon: {
     fontSize: 22,
+  },
+  callHeaderIconDisabled: {
+    opacity: 0.3,
   },
   // ── Empty state ────────────────────────────────────────────────────────────
   emptyChat: {

@@ -8,6 +8,9 @@ const jwt = require('jsonwebtoken');
 const Message = require('./models/Message');
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
+const postRoutes = require('./routes/postRoutes');
+const socialRoutes = require('./routes/socialRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
 
 const app = express();
 const server = http.createServer(app); // wrap express in a raw http server for socket.io
@@ -23,9 +26,12 @@ app.use(cors());
 app.use(express.json());
 
 // ── REST routes ──────────────────────────────────────────────────────────────
-app.get('/', (req, res) => res.send('FaceVault API'));
+app.get('/', (req, res) => res.send('Orbi API'));
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/posts', postRoutes);
+app.use('/api/social', socialRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // ── Database ─────────────────────────────────────────────────────────────────
 async function dbConnection() {
@@ -41,6 +47,11 @@ dbConnection();
 // ── Socket.IO ─────────────────────────────────────────────────────────────────
 // Keep a map of  userId → socketId  so we know where to deliver messages
 const onlineUsers = new Map(); // userId -> socketId
+
+// Make the socket server and the online-users map reachable from REST
+// controllers (via req.app.get(...)) so they can push live notifications.
+app.set('io', io);
+app.set('onlineUsers', onlineUsers);
 
 io.use((socket, next) => {
   // Client must send their JWT as a query param: io('url', { query: { token } })
@@ -205,5 +216,5 @@ io.on('connection', (socket) => {
 
 // Use server.listen (not app.listen) so socket.io shares the same port
 server.listen(PORT, () => {
-  console.log(`FaceVault server running on port ${PORT}`);
+  console.log(`Orbi server running on port ${PORT}`);
 });

@@ -9,17 +9,17 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { AuthStackParamList } from '../../App';
 import { apiSignup } from '../api/authApi';
 import { useAuth } from '../context/AuthContext';
+import OrbiLogo from '../components/OrbiLogo';
+import { colors } from '../theme/colors';
+import { spacing, radius } from '../theme/spacing';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'Signup'>;
-
-const { height } = Dimensions.get('window');
 
 export default function SignupScreen({ navigation }: Props) {
   const { login } = useAuth();
@@ -28,7 +28,6 @@ export default function SignupScreen({ navigation }: Props) {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -67,104 +66,75 @@ export default function SignupScreen({ navigation }: Props) {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}>
 
-          {/* Header */}
-          <View style={styles.header}>
-            <TouchableOpacity
-              style={styles.backBtn}
-              onPress={() => navigation.goBack()}>
-              <Text style={styles.backText}>← Back</Text>
-            </TouchableOpacity>
+          {/* Back */}
+          <TouchableOpacity
+            style={styles.backBtn}
+            onPress={() => navigation.goBack()}>
+            <Text style={styles.backText}>←</Text>
+          </TouchableOpacity>
+
+          {/* Brand */}
+          <View style={styles.brand}>
+            <OrbiLogo size={52} />
+            <Text style={styles.tagline}>Create your account</Text>
           </View>
 
-          {/* Logo */}
-          <View style={styles.logoSection}>
-            <View style={styles.logoBox}>
-              <Text style={styles.logoEmoji}>🔐</Text>
-            </View>
-            <Text style={styles.appName}>FaceVault</Text>
-            <Text style={styles.tagline}>Create your secure vault</Text>
-          </View>
-
-          {/* Form Card */}
-          <View style={styles.card}>
-            <Text style={styles.formTitle}>Create Account</Text>
-            <Text style={styles.formSubtitle}>Join FaceVault today</Text>
-
+          {/* Form */}
+          <View style={styles.form}>
             {error ? (
               <View style={styles.errorBox}>
                 <Text style={styles.errorText}>{error}</Text>
               </View>
             ) : null}
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Full Name</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="John Doe"
-                placeholderTextColor="#9CA3AF"
-                autoCapitalize="words"
-                value={name}
-                onChangeText={setName}
-              />
-            </View>
+            <TextInput
+              style={styles.input}
+              placeholder="Full name"
+              placeholderTextColor={colors.textFaint}
+              autoCapitalize="words"
+              value={name}
+              onChangeText={setName}
+            />
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Email Address</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Email"
+              placeholderTextColor={colors.textFaint}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+              value={email}
+              onChangeText={setEmail}
+            />
+
+            <View style={styles.passwordRow}>
               <TextInput
-                style={styles.input}
-                placeholder="you@example.com"
-                placeholderTextColor="#9CA3AF"
-                keyboardType="email-address"
+                style={styles.passwordInput}
+                placeholder="Password (min. 6 characters)"
+                placeholderTextColor={colors.textFaint}
+                secureTextEntry={!showPassword}
                 autoCapitalize="none"
-                autoCorrect={false}
-                value={email}
-                onChangeText={setEmail}
+                value={password}
+                onChangeText={setPassword}
               />
+              <TouchableOpacity
+                style={styles.eyeBtn}
+                onPress={() => setShowPassword(p => !p)}>
+                <Text style={styles.eyeText}>
+                  {showPassword ? 'Hide' : 'Show'}
+                </Text>
+              </TouchableOpacity>
             </View>
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Password</Text>
-              <View style={styles.passwordRow}>
-                <TextInput
-                  style={styles.passwordInput}
-                  placeholder="Min. 6 characters"
-                  placeholderTextColor="#9CA3AF"
-                  secureTextEntry={!showPassword}
-                  autoCapitalize="none"
-                  value={password}
-                  onChangeText={setPassword}
-                />
-                <TouchableOpacity
-                  style={styles.eyeBtn}
-                  onPress={() => setShowPassword(p => !p)}>
-                  <Text style={styles.eyeText}>
-                    {showPassword ? 'Hide' : 'Show'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Confirm Password</Text>
-              <View style={styles.passwordRow}>
-                <TextInput
-                  style={styles.passwordInput}
-                  placeholder="Re-enter your password"
-                  placeholderTextColor="#9CA3AF"
-                  secureTextEntry={!showConfirm}
-                  autoCapitalize="none"
-                  value={confirmPassword}
-                  onChangeText={setConfirmPassword}
-                />
-                <TouchableOpacity
-                  style={styles.eyeBtn}
-                  onPress={() => setShowConfirm(p => !p)}>
-                  <Text style={styles.eyeText}>
-                    {showConfirm ? 'Hide' : 'Show'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
+            <TextInput
+              style={styles.input}
+              placeholder="Confirm password"
+              placeholderTextColor={colors.textFaint}
+              secureTextEntry={!showPassword}
+              autoCapitalize="none"
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+            />
 
             <TouchableOpacity
               style={[styles.button, loading && styles.buttonDisabled]}
@@ -172,16 +142,14 @@ export default function SignupScreen({ navigation }: Props) {
               disabled={loading}
               activeOpacity={0.85}>
               {loading ? (
-                <ActivityIndicator color="#FFFFFF" />
+                <ActivityIndicator color={colors.white} />
               ) : (
                 <Text style={styles.buttonText}>Create Account</Text>
               )}
             </TouchableOpacity>
 
             <Text style={styles.termsText}>
-              By signing up, you agree to our{' '}
-              <Text style={styles.termsLink}>Terms of Service</Text> and{' '}
-              <Text style={styles.termsLink}>Privacy Policy</Text>.
+              By signing up, you agree to our Terms and Privacy Policy.
             </Text>
           </View>
 
@@ -189,7 +157,7 @@ export default function SignupScreen({ navigation }: Props) {
           <View style={styles.footer}>
             <Text style={styles.footerText}>Already have an account? </Text>
             <TouchableOpacity onPress={() => navigation.navigate('Login')}>
-              <Text style={styles.footerLink}>Log In</Text>
+              <Text style={styles.footerLink}>Log in</Text>
             </TouchableOpacity>
           </View>
 
@@ -202,189 +170,127 @@ export default function SignupScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: colors.background,
   },
   kav: {
     flex: 1,
   },
   scroll: {
     flexGrow: 1,
-    paddingHorizontal: 24,
-    paddingBottom: 32,
-  },
-  header: {
-    paddingTop: 8,
-    marginBottom: 4,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.xxl,
   },
   backBtn: {
-    alignSelf: 'flex-start',
-    paddingVertical: 6,
-    paddingRight: 12,
+    position: 'absolute',
+    top: spacing.md,
+    left: spacing.lg,
+    padding: spacing.sm,
   },
   backText: {
-    fontSize: 15,
-    color: '#4F46E5',
+    fontSize: 24,
+    color: colors.ink,
     fontWeight: '600',
   },
-  logoSection: {
+  brand: {
     alignItems: 'center',
-    paddingTop: height * 0.02,
-    paddingBottom: 28,
-  },
-  logoBox: {
-    width: 70,
-    height: 70,
-    borderRadius: 20,
-    backgroundColor: '#4F46E5',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
-    shadowColor: '#4F46E5',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.35,
-    shadowRadius: 16,
-    elevation: 10,
-  },
-  logoEmoji: {
-    fontSize: 32,
-  },
-  appName: {
-    fontSize: 26,
-    fontWeight: '800',
-    color: '#0F172A',
-    letterSpacing: 0.5,
+    marginBottom: spacing.xl,
   },
   tagline: {
     fontSize: 14,
-    color: '#64748B',
-    marginTop: 4,
+    color: colors.textMuted,
+    marginTop: spacing.md,
   },
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    padding: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 20,
-    elevation: 5,
-  },
-  formTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#0F172A',
-    marginBottom: 4,
-  },
-  formSubtitle: {
-    fontSize: 14,
-    color: '#64748B',
-    marginBottom: 20,
+  form: {
+    width: '100%',
   },
   errorBox: {
-    backgroundColor: '#FEF2F2',
-    borderWidth: 1,
-    borderColor: '#FECACA',
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 16,
+    backgroundColor: '#FEECEC',
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginBottom: spacing.lg,
   },
   errorText: {
-    color: '#DC2626',
+    color: colors.danger,
     fontSize: 13,
     fontWeight: '500',
   },
-  inputGroup: {
-    marginBottom: 16,
-  },
-  label: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#374151',
-    marginBottom: 6,
-  },
   input: {
-    height: 50,
-    borderWidth: 1.5,
-    borderColor: '#E2E8F0',
-    borderRadius: 12,
-    paddingHorizontal: 16,
+    height: 52,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.lg,
     fontSize: 15,
-    color: '#0F172A',
-    backgroundColor: '#F8FAFC',
+    color: colors.ink,
+    backgroundColor: colors.offWhite,
+    marginBottom: spacing.md,
   },
   passwordRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: '#E2E8F0',
-    borderRadius: 12,
-    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    backgroundColor: colors.offWhite,
     overflow: 'hidden',
+    marginBottom: spacing.md,
   },
   passwordInput: {
     flex: 1,
-    height: 50,
-    paddingHorizontal: 16,
+    height: 52,
+    paddingHorizontal: spacing.lg,
     fontSize: 15,
-    color: '#0F172A',
+    color: colors.ink,
   },
   eyeBtn: {
-    paddingHorizontal: 16,
-    height: 50,
+    paddingHorizontal: spacing.lg,
+    height: 52,
     alignItems: 'center',
     justifyContent: 'center',
   },
   eyeText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#4F46E5',
+    color: colors.ink,
   },
   button: {
     height: 52,
-    backgroundColor: '#4F46E5',
-    borderRadius: 14,
+    backgroundColor: colors.ink,
+    borderRadius: radius.md,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 8,
-    shadowColor: '#4F46E5',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
+    marginTop: spacing.xs,
   },
   buttonDisabled: {
-    opacity: 0.7,
+    opacity: 0.6,
   },
   buttonText: {
-    color: '#FFFFFF',
+    color: colors.white,
     fontSize: 16,
     fontWeight: '700',
     letterSpacing: 0.3,
   },
   termsText: {
     fontSize: 12,
-    color: '#94A3B8',
+    color: colors.textFaint,
     textAlign: 'center',
-    marginTop: 14,
+    marginTop: spacing.lg,
     lineHeight: 18,
-  },
-  termsLink: {
-    color: '#4F46E5',
-    fontWeight: '600',
   },
   footer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 28,
+    marginTop: spacing.xl,
   },
   footerText: {
     fontSize: 14,
-    color: '#64748B',
+    color: colors.textMuted,
   },
   footerLink: {
     fontSize: 14,
-    color: '#4F46E5',
+    color: colors.ink,
     fontWeight: '700',
   },
 });

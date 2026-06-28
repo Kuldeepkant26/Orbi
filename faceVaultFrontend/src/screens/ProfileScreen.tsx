@@ -1,245 +1,141 @@
-import React from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   TouchableOpacity,
-  ScrollView,
+  StyleSheet,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { AppStackParamList } from '../../App';
 import { useAuth } from '../context/AuthContext';
+import { apiFetchProfile, Profile } from '../api/socialApi';
+import { apiFetchUserPosts, Post } from '../api/postsApi';
+import ProfileView from '../components/ProfileView';
+import Icon from '../components/Icon';
+import { colors } from '../theme/colors';
+import { spacing, radius } from '../theme/spacing';
 
-type Props = NativeStackScreenProps<AppStackParamList, 'Profile'>;
+// The Profile tab = MY OWN profile. Shows my info + post grid, an "Edit Profile"
+// button, and a logout option in the top bar.
 
-export default function ProfileScreen({ navigation }: Props) {
-  const { user, logout } = useAuth();
+type Nav = NativeStackNavigationProp<AppStackParamList>;
 
-  const initial = user?.name?.charAt(0).toUpperCase() ?? '?';
+export default function ProfileScreen() {
+  const navigation = useNavigation<Nav>();
+  const { user, token, logout } = useAuth();
 
-  // Format "member since" date from user id (MongoDB ObjectId contains a timestamp)
-  const memberSince = (() => {
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    if (!user) return;
     try {
-      const ts = parseInt(user!.id.substring(0, 8), 16) * 1000;
-      return new Date(ts).toLocaleDateString('en-US', {
-        month: 'long',
-        year: 'numeric',
-      });
+      const [p, ps] = await Promise.all([
+        apiFetchProfile(token!, user.id),
+        apiFetchUserPosts(token!, user.id),
+      ]);
+      setProfile(p);
+      setPosts(ps);
     } catch {
-      return 'Recently';
+      // Keep whatever we had; pull-to-refresh / re-focus can retry.
+    } finally {
+      setLoading(false);
     }
-  })();
+  }, [token, user]);
+
+  // Refresh whenever the tab regains focus (e.g. after editing the profile or
+  // creating a post).
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', load);
+    return unsubscribe;
+  }, [navigation, load]);
+
+  const confirmLogout = () => {
+    Alert.alert('Log out', 'Are you sure you want to log out?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Log out', style: 'destructive', onPress: logout },
+    ]);
+  };
 
   return (
-    <ScrollView
-      style={styles.scroll}
-      contentContainerStyle={styles.container}
-      showsVerticalScrollIndicator={false}>
-
-      {/* Avatar + name */}
-      <View style={styles.hero}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>{initial}</Text>
-        </View>
-        <Text style={styles.name}>{user?.name}</Text>
-        <Text style={styles.email}>{user?.email}</Text>
-      </View>
-
-      {/* Info cards */}
-      <View style={styles.infoSection}>
-        <Text style={styles.sectionLabel}>Account Details</Text>
-
-        <View style={styles.infoCard}>
-          <InfoRow icon="👤" label="Full Name" value={user?.name ?? '-'} />
-          <Divider />
-          <InfoRow icon="✉️" label="Email" value={user?.email ?? '-'} />
-          <Divider />
-          <InfoRow icon="📅" label="Member Since" value={memberSince} />
-        </View>
-      </View>
-
-      {/* Actions */}
-      <View style={styles.actionsSection}>
-        <Text style={styles.sectionLabel}>Quick Actions</Text>
-
-        <TouchableOpacity
-          style={styles.actionCard}
-          onPress={() => navigation.navigate('Users')}>
-          <Text style={styles.actionIcon}>👥</Text>
-          <Text style={styles.actionLabel}>Browse People</Text>
-          <Text style={styles.actionArrow}>›</Text>
+    <SafeAreaView style={styles.safe} edges={['top']}>
+      {/* Top bar: my username + logout */}
+      <View style={styles.topBar}>
+        <Text style={styles.handle}>
+          {profile?.username || user?.username || user?.name}
+        </Text>
+        <TouchableOpacity onPress={confirmLogout} style={styles.iconBtn}>
+          <Icon name="log-out-outline" size={22} color={colors.ink} />
         </TouchableOpacity>
       </View>
 
-      {/* Logout button */}
-      <TouchableOpacity style={styles.logoutBtn} onPress={logout}>
-        <Text style={styles.logoutText}>Log Out</Text>
-      </TouchableOpacity>
-
-    </ScrollView>
+      {loading || !profile ? (
+        <View style={styles.center}>
+          <ActivityIndicator color={colors.ink} />
+        </View>
+      ) : (
+        <ProfileView
+          profile={profile}
+          posts={posts}
+          onOpenPost={p => navigation.navigate('PostDetail', { postId: p._id })}
+          actions={
+            <TouchableOpacity
+              style={styles.editBtn}
+              activeOpacity={0.8}
+              onPress={() => navigation.navigate('EditProfile')}>
+              <Text style={styles.editText}>Edit Profile</Text>
+            </TouchableOpacity>
+          }
+        />
+      )}
+    </SafeAreaView>
   );
-}
-
-function InfoRow({ icon, label, value }: { icon: string; label: string; value: string }) {
-  return (
-    <View style={styles.infoRow}>
-      <Text style={styles.infoIcon}>{icon}</Text>
-      <View style={styles.infoTextBlock}>
-        <Text style={styles.infoLabel}>{label}</Text>
-        <Text style={styles.infoValue}>{value}</Text>
-      </View>
-    </View>
-  );
-}
-
-function Divider() {
-  return <View style={styles.divider} />;
 }
 
 const styles = StyleSheet.create({
-  scroll: {
+  safe: {
     flex: 1,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: colors.background,
   },
-  container: {
-    padding: 24,
-    paddingBottom: 48,
-  },
-  // ── Hero ─────────────────────────────────────────────────────────────────────
-  hero: {
+  topBar: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 32,
-    marginTop: 8,
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
   },
-  avatar: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
-    backgroundColor: '#4F46E5',
+  handle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.ink,
+  },
+  iconBtn: {
+    padding: spacing.xs,
+  },
+  center: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#4F46E5',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.35,
-    shadowRadius: 16,
-    elevation: 10,
-    marginBottom: 14,
   },
-  avatarText: {
-    color: '#fff',
-    fontSize: 38,
-    fontWeight: '700',
+  editBtn: {
+    flex: 1,
+    height: 38,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  name: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: '#0F172A',
-    marginBottom: 4,
-  },
-  email: {
+  editText: {
     fontSize: 14,
-    color: '#64748B',
-  },
-  // ── Info card ─────────────────────────────────────────────────────────────────
-  sectionLabel: {
-    fontSize: 12,
     fontWeight: '600',
-    color: '#94A3B8',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    marginBottom: 10,
-    paddingLeft: 4,
-  },
-  infoSection: {
-    marginBottom: 24,
-  },
-  infoCard: {
-    backgroundColor: '#fff',
-    borderRadius: 18,
-    paddingVertical: 4,
-    paddingHorizontal: 16,
-    shadowColor: '#94A3B8',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  infoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 14,
-  },
-  infoIcon: {
-    fontSize: 20,
-    marginRight: 14,
-    width: 28,
-    textAlign: 'center',
-  },
-  infoTextBlock: {
-    flex: 1,
-  },
-  infoLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#94A3B8',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 2,
-  },
-  infoValue: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#0F172A',
-  },
-  divider: {
-    height: 1,
-    backgroundColor: '#F1F5F9',
-  },
-  // ── Actions ───────────────────────────────────────────────────────────────────
-  actionsSection: {
-    marginBottom: 32,
-  },
-  actionCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    shadowColor: '#94A3B8',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  actionIcon: {
-    fontSize: 20,
-    marginRight: 14,
-  },
-  actionLabel: {
-    flex: 1,
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#0F172A',
-  },
-  actionArrow: {
-    fontSize: 22,
-    color: '#4F46E5',
-    fontWeight: '700',
-  },
-  // ── Logout ────────────────────────────────────────────────────────────────────
-  logoutBtn: {
-    height: 52,
-    borderRadius: 16,
-    borderWidth: 1.5,
-    borderColor: '#FECACA',
-    backgroundColor: '#FFF1F2',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  logoutText: {
-    color: '#EF4444',
-    fontSize: 16,
-    fontWeight: '700',
+    color: colors.ink,
   },
 });
