@@ -110,7 +110,8 @@ export default function HighlightViewerScreen({ route, navigation }: Props) {
         </TouchableWithoutFeedback>
       </View>
 
-      <SafeAreaView style={styles.overlay} pointerEvents="box-none">
+      {/* Top bar (progress + header), pinned to the top. */}
+      <SafeAreaView style={styles.topBar} edges={['top']} pointerEvents="box-none">
         <View style={styles.progressRow}>
           {items.map((it, i) => (
             <View key={i} style={styles.track}>
@@ -138,13 +139,13 @@ export default function HighlightViewerScreen({ route, navigation }: Props) {
             <Icon name="close" size={26} color="#fff" />
           </TouchableOpacity>
         </View>
-
-        {!!current.caption && (
-          <View style={styles.captionWrap} pointerEvents="none">
-            <Text style={styles.caption}>{current.caption}</Text>
-          </View>
-        )}
       </SafeAreaView>
+
+      {!!current.caption && (
+        <View style={styles.captionWrap} pointerEvents="none">
+          <Text style={styles.caption}>{current.caption}</Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -158,7 +159,7 @@ const styles = StyleSheet.create({
   image: { position: 'absolute', top: 0, left: 0, width, height },
   tapZones: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, flexDirection: 'row' },
   tapZone: { flex: 1 },
-  overlay: { flex: 1 },
+  topBar: { position: 'absolute', top: 0, left: 0, right: 0 },
   progressRow: { flexDirection: 'row', paddingHorizontal: 8, paddingTop: 8, gap: 4 },
   track: { flex: 1, height: 2.5, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.35)', overflow: 'hidden' },
   fill: { height: 2.5, backgroundColor: '#fff' },

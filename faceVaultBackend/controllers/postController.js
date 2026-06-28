@@ -103,6 +103,31 @@ const getPost = async (req, res) => {
   }
 };
 
+// GET /api/posts/:postId/likers — the people who liked a post.
+const getPostLikers = async (req, res) => {
+  try {
+    const post = await Post.findById(req.params.postId).populate(
+      'likes',
+      'name username avatarUrl bio isBanned isDeleted'
+    );
+    if (!post) return res.status(404).json({ message: 'Post not found' });
+
+    // Hide banned/deleted users from the list.
+    const likers = post.likes
+      .filter(u => !u.isBanned && !u.isDeleted)
+      .map(u => ({
+        _id: u._id,
+        name: u.name,
+        username: u.username,
+        avatarUrl: u.avatarUrl,
+        bio: u.bio,
+      }));
+    res.json(likers);
+  } catch (error) {
+    res.status(500).json({ message: 'Something went wrong', error: error.message });
+  }
+};
+
 // POST /api/posts/:postId/like — like a post.
 const likePost = async (req, res) => {
   try {
@@ -278,6 +303,7 @@ module.exports = {
   getFeed,
   getUserPosts,
   getPost,
+  getPostLikers,
   likePost,
   unlikePost,
   getComments,

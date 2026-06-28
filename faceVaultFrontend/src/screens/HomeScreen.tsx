@@ -119,6 +119,7 @@ export default function HomeScreen() {
             onOpenComments={p =>
               setCommentsFor({ postId: p._id, authorId: p.author._id })
             }
+            onOpenLikers={p => navigation.navigate('Likers', { postId: p._id })}
             onOpenProfile={userId => navigation.navigate('UserProfile', { userId })}
             onMessage={p =>
               navigation.navigate('Chat', {

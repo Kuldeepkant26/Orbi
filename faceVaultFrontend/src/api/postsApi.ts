@@ -95,6 +95,28 @@ export async function apiCreatePost(
   return data;
 }
 
+// A person who liked a post.
+export type Liker = {
+  _id: string;
+  name: string;
+  username?: string;
+  avatarUrl?: string;
+  bio?: string;
+};
+
+// GET the list of people who liked a post.
+export async function apiFetchPostLikers(
+  token: string,
+  postId: string
+): Promise<Liker[]> {
+  const res = await fetch(`${BASE_URL}/${postId}/likers`, {
+    headers: authHeaders(token),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to load likes');
+  return data;
+}
+
 // POST/DELETE like. Returns the new like count + whether you like it now.
 export async function apiLikePost(
   token: string,

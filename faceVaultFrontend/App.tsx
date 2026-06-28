@@ -26,6 +26,7 @@ import MyReportsScreen from './src/screens/MyReportsScreen';
 import StoryViewerScreen from './src/screens/StoryViewerScreen';
 import CreateStoryScreen from './src/screens/CreateStoryScreen';
 import FollowListScreen from './src/screens/FollowListScreen';
+import LikersScreen from './src/screens/LikersScreen';
 import HighlightViewerScreen from './src/screens/HighlightViewerScreen';
 import CreateHighlightScreen from './src/screens/CreateHighlightScreen';
 import IncomingCallScreen from './src/screens/IncomingCallScreen';
@@ -70,6 +71,8 @@ export type AppStackParamList = {
   CreateHighlight: undefined;
   // Followers / following list.
   FollowList: { userId: string; kind: 'followers' | 'following'; title: string };
+  // People who liked a post.
+  Likers: { postId: string };
 };
 
 // ── Stacks ────────────────────────────────────────────────────────────────────
@@ -186,6 +189,11 @@ function AppNavigator() {
         name="FollowList"
         component={FollowListScreen}
         options={({ route }) => ({ title: route.params.title })}
+      />
+      <AppStack.Screen
+        name="Likers"
+        component={LikersScreen}
+        options={{ title: 'Likes' }}
       />
     </AppStack.Navigator>
   );

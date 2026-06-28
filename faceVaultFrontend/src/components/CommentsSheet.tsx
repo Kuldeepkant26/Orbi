@@ -12,6 +12,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  Dimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
@@ -238,10 +239,11 @@ export default function CommentsSheet({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose} />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.sheetWrap}>
+        style={styles.root}>
+        {/* Tap the top area to dismiss; the sheet fills the lower part. */}
+        <Pressable style={styles.backdrop} onPress={onClose} />
         <View style={[styles.sheet, { paddingBottom: insets.bottom }]}>
           <View style={styles.handle} />
           <Text style={styles.title}>Comments</Text>
@@ -252,6 +254,7 @@ export default function CommentsSheet({
             </View>
           ) : (
             <FlatList
+              style={styles.flex}
               data={threads}
               keyExtractor={item => item._id}
               renderItem={({ item }) => renderComment(item)}
@@ -306,14 +309,17 @@ export default function CommentsSheet({
   );
 }
 
+const SHEET_HEIGHT = Math.round(Dimensions.get('window').height * 0.8);
+
 const styles = StyleSheet.create({
+  // Full-screen column: a tappable backdrop on top, the sheet pinned to bottom.
+  root: { flex: 1, justifyContent: 'flex-end' },
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)' },
-  sheetWrap: { position: 'absolute', left: 0, right: 0, bottom: 0 },
   sheet: {
     backgroundColor: colors.background,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    height: '76%',
+    height: SHEET_HEIGHT,
   },
   handle: {
     width: 40,
@@ -332,8 +338,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
   },
+  flex: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  list: { padding: spacing.lg },
+  list: { padding: spacing.lg, flexGrow: 1 },
   commentRow: { flexDirection: 'row', marginBottom: spacing.lg },
   replyRow: { marginTop: spacing.md, marginBottom: 0 },
   commentBody: { flex: 1, marginLeft: spacing.md },

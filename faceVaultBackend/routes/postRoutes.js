@@ -6,6 +6,7 @@ const {
   getFeed,
   getUserPosts,
   getPost,
+  getPostLikers,
   likePost,
   unlikePost,
   getComments,
@@ -28,6 +29,7 @@ router.delete('/comments/:commentId/like', likeComment); // unlike a comment
 router.post('/comments/:commentId/pin', pinComment);     // pin/unpin (owner only)
 
 router.get('/:postId', getPost);                    // single post
+router.get('/:postId/likers', getPostLikers);       // who liked this post
 router.post('/:postId/like', likePost);             // like a post
 router.delete('/:postId/like', unlikePost);         // unlike a post
 router.get('/:postId/comments', getComments);       // list comments

@@ -34,6 +34,8 @@ type Props = {
   onOpenComments: (post: Post) => void;
   onOpenProfile: (userId: string) => void;
   onMessage?: (post: Post) => void;
+  // Tapping the like count → the list of people who liked it.
+  onOpenLikers?: (post: Post) => void;
 };
 
 export default function PostCard({
@@ -42,6 +44,7 @@ export default function PostCard({
   onOpenComments,
   onOpenProfile,
   onMessage,
+  onOpenLikers,
 }: Props) {
   // We keep a local copy of the like state so tapping the heart feels instant
   // (optimistic update). The parent does the real network call.
@@ -113,11 +116,16 @@ export default function PostCard({
         )}
       </View>
 
-      {/* Like count */}
+      {/* Like count — tap to see who liked it */}
       {likesCount > 0 && (
-        <Text style={styles.likes}>
-          {likesCount} {likesCount === 1 ? 'like' : 'likes'}
-        </Text>
+        <TouchableOpacity
+          activeOpacity={0.6}
+          disabled={!onOpenLikers}
+          onPress={() => onOpenLikers?.(post)}>
+          <Text style={styles.likes}>
+            {likesCount} {likesCount === 1 ? 'like' : 'likes'}
+          </Text>
+        </TouchableOpacity>
       )}
 
       {/* Caption (only shown here if the post has an image; text-only posts

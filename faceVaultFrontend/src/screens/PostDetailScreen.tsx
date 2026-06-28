@@ -56,6 +56,7 @@ export default function PostDetailScreen({ route, navigation }: Props) {
           post={post}
           onToggleLike={handleToggleLike}
           onOpenComments={() => setCommentsOpen(true)}
+          onOpenLikers={p => navigation.navigate('Likers', { postId: p._id })}
           onOpenProfile={userId => navigation.navigate('UserProfile', { userId })}
           onMessage={p =>
             navigation.navigate('Chat', {
