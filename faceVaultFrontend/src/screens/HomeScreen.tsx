@@ -16,6 +16,7 @@ import { useAuth } from '../context/AuthContext';
 import { apiFetchFeed, apiLikePost, Post } from '../api/postsApi';
 import PostCard from '../components/PostCard';
 import OrbiHeader from '../components/OrbiHeader';
+import StoryTray from '../components/StoryTray';
 import { FeedSkeleton } from '../components/skeletons';
 import { colors } from '../theme/colors';
 import { spacing } from '../theme/spacing';
@@ -37,6 +38,8 @@ export default function HomeScreen() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState('');
+  // Bumped on pull-to-refresh so the story tray reloads too.
+  const [storyKey, setStoryKey] = useState(0);
 
   // Load the first page (or reload on pull-to-refresh).
   const loadFeed = useCallback(async () => {
@@ -105,6 +108,7 @@ export default function HomeScreen() {
       <FlatList
         data={posts}
         keyExtractor={item => item._id}
+        ListHeaderComponent={<StoryTray refreshKey={storyKey} />}
         renderItem={({ item }) => (
           <PostCard
             post={item}
@@ -124,6 +128,7 @@ export default function HomeScreen() {
             refreshing={refreshing}
             onRefresh={() => {
               setRefreshing(true);
+              setStoryKey(k => k + 1);
               loadFeed();
             }}
             tintColor={colors.ink}

@@ -119,6 +119,26 @@ const getConversations = async (req, res) => {
   }
 };
 
+// GET /api/users/:userId/followers — the list of a user's followers.
+// GET /api/users/:userId/following — the list of who a user follows.
+// `kind` (from the route) is 'followers' or 'following'.
+const getConnections = (kind) => async (req, res) => {
+  try {
+    const user = await User.findById(req.params.userId).select(kind);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    const people = await User.find({
+      _id: { $in: user[kind] },
+      isBanned: { $ne: true },
+      isDeleted: { $ne: true },
+    }).select('name username avatarUrl bio');
+
+    res.json(people);
+  } catch (error) {
+    res.status(500).json({ message: 'Something went wrong', error: error.message });
+  }
+};
+
 // GET /api/users/:userId/profile — public profile of a user (for the profile screen).
 // Returns their basic info, follower/following/post counts, and whether *I*
 // currently follow them (so the app can show "Follow" vs "Following").
@@ -276,6 +296,7 @@ module.exports = {
   updateMyProfile,
   getUnreadMessageCount,
   getConversations,
+  getConnections,
   getMessages,
   sendMessage,
   editMessage,

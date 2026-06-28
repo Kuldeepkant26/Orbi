@@ -11,7 +11,9 @@ import { AppStackParamList } from '../../App';
 import { useAuth } from '../context/AuthContext';
 import { apiFetchProfile, Profile } from '../api/socialApi';
 import { apiFetchUserPosts, Post } from '../api/postsApi';
+import { apiFetchUserHighlights, Highlight } from '../api/highlightsApi';
 import ProfileView from '../components/ProfileView';
+import HighlightsRow from '../components/HighlightsRow';
 import OrbiHeader from '../components/OrbiHeader';
 import { ProfileSkeleton } from '../components/skeletons';
 import { colors } from '../theme/colors';
@@ -28,21 +30,26 @@ export default function ProfileScreen() {
 
   const [profile, setProfile] = useState<Profile | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
+  const [highlights, setHighlights] = useState<Highlight[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
     if (!user) return;
     try {
-      const [p, ps] = await Promise.all([
+      const [p, ps, hs] = await Promise.all([
         apiFetchProfile(token!, user.id),
         apiFetchUserPosts(token!, user.id),
+        apiFetchUserHighlights(token!, user.id),
       ]);
       setProfile(p);
       setPosts(ps);
+      setHighlights(hs);
     } catch {
       // Keep whatever we had; pull-to-refresh / re-focus can retry.
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, [token, user]);
 
@@ -63,7 +70,45 @@ export default function ProfileScreen() {
         <ProfileView
           profile={profile}
           posts={posts}
+          refreshing={refreshing}
+          onRefresh={() => {
+            setRefreshing(true);
+            load();
+          }}
           onOpenPost={p => navigation.navigate('PostDetail', { postId: p._id })}
+          onOpenAvatar={() =>
+            navigation.navigate('StoryViewer', {
+              userId: user!.id,
+              userName: user!.name,
+            })
+          }
+          onOpenFollowers={() =>
+            navigation.navigate('FollowList', {
+              userId: user!.id,
+              kind: 'followers',
+              title: 'Followers',
+            })
+          }
+          onOpenFollowing={() =>
+            navigation.navigate('FollowList', {
+              userId: user!.id,
+              kind: 'following',
+              title: 'Following',
+            })
+          }
+          highlights={
+            <HighlightsRow
+              highlights={highlights}
+              isMe
+              onOpen={h =>
+                navigation.navigate('HighlightViewer', {
+                  highlightId: h._id,
+                  ownerId: user!.id,
+                })
+              }
+              onCreate={() => navigation.navigate('CreateHighlight')}
+            />
+          }
           actions={
             <TouchableOpacity
               style={styles.editBtn}

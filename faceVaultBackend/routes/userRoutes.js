@@ -7,6 +7,7 @@ const {
   updateMyProfile,
   getUnreadMessageCount,
   getConversations,
+  getConnections,
   getMessages,
   sendMessage,
   editMessage,
@@ -29,6 +30,8 @@ router.post('/messages', sendMessage);                 // send a message
 router.put('/messages/:messageId', editMessage);       // edit a message
 router.delete('/messages/:messageId', deleteMessage);  // delete a message
 
+router.get('/:userId/followers', getConnections('followers')); // a user's followers
+router.get('/:userId/following', getConnections('following')); // who a user follows
 router.get('/:userId/profile', getProfile);            // public profile of a user
 
 module.exports = router;

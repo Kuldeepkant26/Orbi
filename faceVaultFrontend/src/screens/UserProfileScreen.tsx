@@ -10,7 +10,9 @@ import { AppStackParamList } from '../../App';
 import { useAuth } from '../context/AuthContext';
 import { apiFetchProfile, apiToggleFollow, Profile } from '../api/socialApi';
 import { apiFetchUserPosts, Post } from '../api/postsApi';
+import { apiFetchUserHighlights, Highlight } from '../api/highlightsApi';
 import ProfileView from '../components/ProfileView';
+import HighlightsRow from '../components/HighlightsRow';
 import { ProfileSkeleton } from '../components/skeletons';
 import { colors } from '../theme/colors';
 import { spacing, radius } from '../theme/spacing';
@@ -27,18 +29,22 @@ export default function UserProfileScreen({ route, navigation }: Props) {
 
   const [profile, setProfile] = useState<Profile | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
+  const [highlights, setHighlights] = useState<Highlight[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [following, setFollowing] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
     try {
-      const [p, ps] = await Promise.all([
+      const [p, ps, hs] = await Promise.all([
         apiFetchProfile(token!, userId),
         apiFetchUserPosts(token!, userId),
+        apiFetchUserHighlights(token!, userId),
       ]);
       setProfile(p);
       setPosts(ps);
+      setHighlights(hs);
       setFollowing(p.isFollowedByMe);
       // Show their handle in the header.
       navigation.setOptions({ title: p.username || p.name });
@@ -46,6 +52,7 @@ export default function UserProfileScreen({ route, navigation }: Props) {
       // ignore; nothing to show
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, [token, userId, navigation]);
 
@@ -98,7 +105,44 @@ export default function UserProfileScreen({ route, navigation }: Props) {
     <ProfileView
       profile={profile}
       posts={posts}
+      refreshing={refreshing}
+      onRefresh={() => {
+        setRefreshing(true);
+        load();
+      }}
       onOpenPost={p => navigation.navigate('PostDetail', { postId: p._id })}
+      onOpenAvatar={() =>
+        navigation.navigate('StoryViewer', {
+          userId: profile._id,
+          userName: profile.name,
+        })
+      }
+      onOpenFollowers={() =>
+        navigation.navigate('FollowList', {
+          userId: profile._id,
+          kind: 'followers',
+          title: 'Followers',
+        })
+      }
+      onOpenFollowing={() =>
+        navigation.navigate('FollowList', {
+          userId: profile._id,
+          kind: 'following',
+          title: 'Following',
+        })
+      }
+      highlights={
+        <HighlightsRow
+          highlights={highlights}
+          isMe={false}
+          onOpen={h =>
+            navigation.navigate('HighlightViewer', {
+              highlightId: h._id,
+              ownerId: profile._id,
+            })
+          }
+        />
+      }
       actions={
         <>
           <TouchableOpacity

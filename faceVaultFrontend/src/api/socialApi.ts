@@ -43,6 +43,29 @@ function authHeaders(token: string) {
   };
 }
 
+// A person in a followers/following list.
+export type Connection = {
+  _id: string;
+  name: string;
+  username?: string;
+  avatarUrl?: string;
+  bio?: string;
+};
+
+// GET a user's followers or following list. kind = 'followers' | 'following'.
+export async function apiFetchConnections(
+  token: string,
+  userId: string,
+  kind: 'followers' | 'following',
+): Promise<Connection[]> {
+  const res = await fetch(`${USERS_URL}/${userId}/${kind}`, {
+    headers: authHeaders(token),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to load list');
+  return data;
+}
+
 // GET a user's public profile.
 export async function apiFetchProfile(
   token: string,

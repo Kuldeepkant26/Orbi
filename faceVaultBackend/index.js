@@ -13,6 +13,8 @@ const socialRoutes = require('./routes/socialRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const reportRoutes = require('./routes/reportRoutes');
+const storyRoutes = require('./routes/storyRoutes');
+const highlightRoutes = require('./routes/highlightRoutes');
 
 const app = express();
 const server = http.createServer(app); // wrap express in a raw http server for socket.io
@@ -36,6 +38,8 @@ app.use('/api/social', socialRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/stories', storyRoutes);
+app.use('/api/highlights', highlightRoutes);
 
 // ── Database ─────────────────────────────────────────────────────────────────
 async function dbConnection() {

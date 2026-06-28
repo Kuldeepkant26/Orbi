@@ -6,6 +6,7 @@ import {
   FlatList,
   TouchableOpacity,
   StyleSheet,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -31,6 +32,7 @@ export default function SearchScreen() {
   const [users, setUsers] = useState<UserItem[]>([]);
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
 
   const loadUsers = useCallback(async () => {
@@ -42,6 +44,7 @@ export default function SearchScreen() {
       setError(e.message);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, [token]);
 
@@ -84,6 +87,16 @@ export default function SearchScreen() {
           keyExtractor={item => item._id}
           contentContainerStyle={styles.list}
           keyboardShouldPersistTaps="handled"
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => {
+                setRefreshing(true);
+                loadUsers();
+              }}
+              tintColor={colors.ink}
+            />
+          }
           renderItem={({ item }) => (
             <TouchableOpacity
               style={styles.row}

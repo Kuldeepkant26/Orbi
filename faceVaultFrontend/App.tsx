@@ -23,6 +23,11 @@ import AdminUserDetailScreen from './src/screens/AdminUserDetailScreen';
 import AdminReportsScreen from './src/screens/AdminReportsScreen';
 import ReportIssueScreen from './src/screens/ReportIssueScreen';
 import MyReportsScreen from './src/screens/MyReportsScreen';
+import StoryViewerScreen from './src/screens/StoryViewerScreen';
+import CreateStoryScreen from './src/screens/CreateStoryScreen';
+import FollowListScreen from './src/screens/FollowListScreen';
+import HighlightViewerScreen from './src/screens/HighlightViewerScreen';
+import CreateHighlightScreen from './src/screens/CreateHighlightScreen';
 import IncomingCallScreen from './src/screens/IncomingCallScreen';
 import VideoCallScreen from './src/screens/VideoCallScreen';
 import OrbiLogo from './src/components/OrbiLogo';
@@ -57,6 +62,13 @@ export type AppStackParamList = {
   // Reports (any user).
   ReportIssue: undefined;
   MyReports: undefined;
+  // Stories & highlights.
+  StoryViewer: { userId: string; userName: string };
+  CreateStory: undefined;
+  HighlightViewer: { highlightId: string; ownerId: string };
+  CreateHighlight: undefined;
+  // Followers / following list.
+  FollowList: { userId: string; kind: 'followers' | 'following'; title: string };
 };
 
 // ── Stacks ────────────────────────────────────────────────────────────────────
@@ -148,6 +160,31 @@ function AppNavigator() {
         name="MyReports"
         component={MyReportsScreen}
         options={{ title: 'My Reports' }}
+      />
+      <AppStack.Screen
+        name="StoryViewer"
+        component={StoryViewerScreen}
+        options={{ headerShown: false, presentation: 'fullScreenModal' }}
+      />
+      <AppStack.Screen
+        name="HighlightViewer"
+        component={HighlightViewerScreen}
+        options={{ headerShown: false, presentation: 'fullScreenModal' }}
+      />
+      <AppStack.Screen
+        name="CreateStory"
+        component={CreateStoryScreen}
+        options={{ title: 'New Story' }}
+      />
+      <AppStack.Screen
+        name="CreateHighlight"
+        component={CreateHighlightScreen}
+        options={{ title: 'New Highlight' }}
+      />
+      <AppStack.Screen
+        name="FollowList"
+        component={FollowListScreen}
+        options={({ route }) => ({ title: route.params.title })}
       />
     </AppStack.Navigator>
   );

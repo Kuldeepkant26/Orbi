@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   Dimensions,
+  RefreshControl,
 } from 'react-native';
 import Avatar from './Avatar';
 import Icon from './Icon';
@@ -35,6 +36,16 @@ type Props = {
   // The buttons row (Follow/Message or Edit Profile) — built by the parent.
   actions: React.ReactNode;
   onOpenPost: (post: Post) => void;
+  // Optional: tapping the follower/following counts.
+  onOpenFollowers?: () => void;
+  onOpenFollowing?: () => void;
+  // Optional: a node rendered below the buttons (the highlights row).
+  highlights?: React.ReactNode;
+  // Optional: tapping the avatar (e.g. to view this user's story).
+  onOpenAvatar?: () => void;
+  // Pull-to-refresh.
+  refreshing?: boolean;
+  onRefresh?: () => void;
 };
 
 export default function ProfileView({
@@ -42,6 +53,12 @@ export default function ProfileView({
   posts,
   actions,
   onOpenPost,
+  onOpenFollowers,
+  onOpenFollowing,
+  highlights,
+  onOpenAvatar,
+  refreshing,
+  onRefresh,
 }: Props) {
   return (
     <FlatList
@@ -49,15 +66,26 @@ export default function ProfileView({
       keyExtractor={item => item._id}
       numColumns={3}
       columnWrapperStyle={styles.gridRow}
+      refreshControl={
+        onRefresh ? (
+          <RefreshControl
+            refreshing={!!refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.ink}
+          />
+        ) : undefined
+      }
       ListHeaderComponent={
         <View style={styles.header}>
           {/* Avatar + counts */}
           <View style={styles.topRow}>
-            <Avatar uri={profile.avatarUrl} name={profile.name} size={84} />
+            <TouchableOpacity activeOpacity={0.8} onPress={onOpenAvatar} disabled={!onOpenAvatar}>
+              <Avatar uri={profile.avatarUrl} name={profile.name} size={84} />
+            </TouchableOpacity>
             <View style={styles.counts}>
               <Stat label="Posts" value={profile.postsCount} />
-              <Stat label="Followers" value={profile.followersCount} />
-              <Stat label="Following" value={profile.followingCount} />
+              <Stat label="Followers" value={profile.followersCount} onPress={onOpenFollowers} />
+              <Stat label="Following" value={profile.followingCount} onPress={onOpenFollowing} />
             </View>
           </View>
 
@@ -70,6 +98,9 @@ export default function ProfileView({
 
           {/* Action buttons (parent-provided) */}
           <View style={styles.actions}>{actions}</View>
+
+          {/* Highlights row (parent-provided) */}
+          {highlights}
         </View>
       }
       renderItem={({ item }) => (
@@ -99,13 +130,21 @@ export default function ProfileView({
   );
 }
 
-// A single stat (number on top, label under).
-function Stat({ label, value }: { label: string; value: number }) {
+// A single stat (number on top, label under). Tappable if onPress is given.
+function Stat({
+  label,
+  value,
+  onPress,
+}: {
+  label: string;
+  value: number;
+  onPress?: () => void;
+}) {
   return (
-    <View style={styles.stat}>
+    <TouchableOpacity style={styles.stat} onPress={onPress} disabled={!onPress} activeOpacity={0.6}>
       <Text style={styles.statValue}>{value}</Text>
       <Text style={styles.statLabel}>{label}</Text>
-    </View>
+    </TouchableOpacity>
   );
 }
 
