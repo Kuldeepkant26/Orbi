@@ -23,7 +23,7 @@ import Icon from '../components/Icon';
 type Props = NativeStackScreenProps<AppStackParamList, 'HighlightViewer'>;
 
 const { width, height } = Dimensions.get('window');
-const ITEM_MS = 10000; // each highlight item plays for 10 seconds
+const ITEM_MS = 20000; // each highlight item plays for 20 seconds
 
 export default function HighlightViewerScreen({ route, navigation }: Props) {
   const { highlightId, ownerId } = route.params;
@@ -55,9 +55,11 @@ export default function HighlightViewerScreen({ route, navigation }: Props) {
   const current = items[index];
 
   const goNext = useCallback(() => {
+    // Don't call navigation.goBack() inside the setState updater — it runs
+    // during render and triggers a "setState while rendering" warning. Defer it.
     setIndex(i => {
       if (i < items.length - 1) return i + 1;
-      navigation.goBack();
+      requestAnimationFrame(() => navigation.goBack());
       return i;
     });
   }, [items.length, navigation]);
@@ -111,8 +113,11 @@ export default function HighlightViewerScreen({ route, navigation }: Props) {
         </TouchableWithoutFeedback>
       </View>
 
+      {/* Top scrim improves contrast for the progress bar + header over bright photos. */}
+      <View style={[styles.topScrim, { height: insets.top + 110 }]} pointerEvents="none" />
+
       {/* Top bar (progress + header), pinned to the top. */}
-      <View style={[styles.topBar, { paddingTop: insets.top }]} pointerEvents="box-none">
+      <View style={[styles.topBar, { paddingTop: insets.top + 6 }]} pointerEvents="box-none">
         <View style={styles.progressRow}>
           {items.map((it, i) => (
             <View key={i} style={styles.track}>
@@ -134,18 +139,21 @@ export default function HighlightViewerScreen({ route, navigation }: Props) {
         </View>
 
         <View style={styles.header}>
-          <Text style={styles.title}>{highlight?.title}</Text>
+          <Text style={styles.title} numberOfLines={1}>{highlight?.title}</Text>
           <View style={{ flex: 1 }} />
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.closeBtn}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.closeBtn} hitSlop={8}>
             <Icon name="close" size={26} color="#fff" />
           </TouchableOpacity>
         </View>
       </View>
 
       {!!current.caption && (
-        <View style={styles.captionWrap} pointerEvents="none">
-          <Text style={styles.caption}>{current.caption}</Text>
-        </View>
+        <>
+          <View style={styles.bottomScrim} pointerEvents="none" />
+          <View style={[styles.captionWrap, { bottom: insets.bottom + 70 }]} pointerEvents="none">
+            <Text style={styles.caption}>{current.caption}</Text>
+          </View>
+        </>
       )}
     </View>
   );
@@ -160,14 +168,16 @@ const styles = StyleSheet.create({
   image: { position: 'absolute', top: 0, left: 0, width, height },
   tapZones: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, flexDirection: 'row' },
   tapZone: { flex: 1 },
+  topScrim: { position: 'absolute', top: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.28)' },
+  bottomScrim: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 150, backgroundColor: 'rgba(0,0,0,0.22)' },
   topBar: { position: 'absolute', top: 0, left: 0, right: 0 },
-  progressRow: { flexDirection: 'row', paddingHorizontal: 8, paddingTop: 8, gap: 4 },
-  track: { flex: 1, height: 2.5, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.35)', overflow: 'hidden' },
-  fill: { height: 2.5, backgroundColor: '#fff' },
-  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingTop: 10 },
-  title: { color: '#fff', fontWeight: '700', fontSize: 15 },
-  closeBtn: { padding: 6 },
-  captionWrap: { position: 'absolute', bottom: 80, left: 0, right: 0, alignItems: 'center', paddingHorizontal: 24 },
+  progressRow: { flexDirection: 'row', paddingHorizontal: 10, gap: 4 },
+  track: { flex: 1, height: 3, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.3)', overflow: 'hidden' },
+  fill: { height: 3, borderRadius: 3, backgroundColor: '#fff' },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingTop: 14, paddingBottom: 4 },
+  title: { color: '#fff', fontWeight: '700', fontSize: 15.5, letterSpacing: 0.2 },
+  closeBtn: { padding: 6, marginLeft: 4 },
+  captionWrap: { position: 'absolute', left: 0, right: 0, alignItems: 'center', paddingHorizontal: 24 },
   caption: {
     color: '#fff',
     fontSize: 16,

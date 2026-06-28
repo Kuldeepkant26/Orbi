@@ -6,6 +6,9 @@ import {
   TouchableOpacity,
   StyleSheet,
   Dimensions,
+  ScrollView,
+  NativeSyntheticEvent,
+  NativeScrollEvent,
 } from 'react-native';
 import Avatar from './Avatar';
 import Icon from './Icon';
@@ -51,6 +54,20 @@ export default function PostCard({
   const [liked, setLiked] = useState(post.likedByMe);
   const [likesCount, setLikesCount] = useState(post.likesCount);
 
+  // The images to show: prefer the imageUrls array, fall back to the single one.
+  const images =
+    post.imageUrls && post.imageUrls.length
+      ? post.imageUrls
+      : post.imageUrl
+      ? [post.imageUrl]
+      : [];
+  const [activeImage, setActiveImage] = useState(0);
+
+  const onCarouselScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const i = Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH);
+    if (i !== activeImage) setActiveImage(i);
+  };
+
   const handleLike = () => {
     const next = !liked;
     setLiked(next);
@@ -80,10 +97,43 @@ export default function PostCard({
         <Text style={styles.time}>{timeAgo(post.createdAt)}</Text>
       </View>
 
-      {/* Image, or a text-only card when there's no image */}
-      {post.imageUrl ? (
+      {/* Image carousel, or a text-only card when there's no image */}
+      {images.length > 1 ? (
+        <View>
+          <ScrollView
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            onScroll={onCarouselScroll}
+            scrollEventThrottle={16}>
+            {images.map((uri, i) => (
+              <Image
+                key={`${uri}-${i}`}
+                source={{ uri }}
+                style={styles.image}
+                resizeMode="cover"
+              />
+            ))}
+          </ScrollView>
+          {/* "2/5" counter */}
+          <View style={styles.counter}>
+            <Text style={styles.counterText}>
+              {activeImage + 1}/{images.length}
+            </Text>
+          </View>
+          {/* dot indicators */}
+          <View style={styles.dots}>
+            {images.map((_, i) => (
+              <View
+                key={i}
+                style={[styles.dot, i === activeImage && styles.dotActive]}
+              />
+            ))}
+          </View>
+        </View>
+      ) : images.length === 1 ? (
         <Image
-          source={{ uri: post.imageUrl }}
+          source={{ uri: images[0] }}
           style={styles.image}
           resizeMode="cover"
         />
@@ -130,7 +180,7 @@ export default function PostCard({
 
       {/* Caption (only shown here if the post has an image; text-only posts
           already show their text in the card above). */}
-      {!!post.imageUrl && !!post.caption && (
+      {images.length > 0 && !!post.caption && (
         <Text style={styles.caption}>
           <Text style={styles.username}>
             {post.author.username || post.author.name}{' '}
@@ -183,6 +233,41 @@ const styles = StyleSheet.create({
     width: SCREEN_WIDTH,
     height: SCREEN_WIDTH, // square, like Instagram
     backgroundColor: colors.surfaceAlt,
+  },
+  counter: {
+    position: 'absolute',
+    top: spacing.md,
+    right: spacing.md,
+    backgroundColor: 'rgba(10,10,10,0.6)',
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 12,
+  },
+  counterText: {
+    color: colors.white,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  dots: {
+    position: 'absolute',
+    bottom: spacing.md,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 5,
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255,255,255,0.55)',
+  },
+  dotActive: {
+    backgroundColor: colors.white,
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
   },
   textPost: {
     marginHorizontal: spacing.lg,

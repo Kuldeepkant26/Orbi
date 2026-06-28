@@ -19,7 +19,7 @@ import { AppStackParamList } from '../../App';
 import { useAuth } from '../context/AuthContext';
 import { apiCreatePost } from '../api/postsApi';
 import { uploadImage } from '../api/cloudinaryApi';
-import { pickImageFromGallery, PickedImage } from '../utils/imagePicker';
+import { pickImagesFromGallery, PickedImage } from '../utils/imagePicker';
 import { isCloudinaryConfigured } from '../config/cloudinary';
 import Icon from '../components/Icon';
 import { colors } from '../theme/colors';
@@ -31,36 +31,49 @@ import { spacing, radius } from '../theme/spacing';
 
 type Nav = NativeStackNavigationProp<AppStackParamList>;
 
+const MAX_IMAGES = 10;
+
 export default function CreatePostScreen() {
   const navigation = useNavigation<Nav>();
   const { token } = useAuth();
 
-  const [image, setImage] = useState<PickedImage | null>(null);
+  const [images, setImages] = useState<PickedImage[]>([]);
   const [caption, setCaption] = useState('');
   const [posting, setPosting] = useState(false);
 
-  const handlePickImage = async () => {
+  const handlePickImages = async () => {
+    const remaining = MAX_IMAGES - images.length;
+    if (remaining <= 0) {
+      Alert.alert('Limit reached', `You can add up to ${MAX_IMAGES} photos.`);
+      return;
+    }
     try {
-      const picked = await pickImageFromGallery();
-      if (picked) setImage(picked);
+      const picked = await pickImagesFromGallery(remaining);
+      if (picked.length) {
+        setImages(prev => [...prev, ...picked].slice(0, MAX_IMAGES));
+      }
     } catch (e: any) {
       Alert.alert('Could not open gallery', e.message);
     }
   };
 
+  const removeImage = (uri: string) => {
+    setImages(prev => prev.filter(img => img.uri !== uri));
+  };
+
   const handleShare = async () => {
     // A post needs at least an image or some caption text.
-    if (!image && !caption.trim()) {
+    if (!images.length && !caption.trim()) {
       Alert.alert('Nothing to share', 'Add a photo or write something first.');
       return;
     }
 
     setPosting(true);
     try {
-      let imageUrl = '';
+      let imageUrls: string[] = [];
 
-      // If the user picked an image, upload it to Cloudinary first.
-      if (image) {
+      // If the user picked images, upload them all to Cloudinary first.
+      if (images.length) {
         if (!isCloudinaryConfigured) {
           Alert.alert(
             'Image upload not set up',
@@ -69,16 +82,16 @@ export default function CreatePostScreen() {
           setPosting(false);
           return;
         }
-        imageUrl = await uploadImage(image);
+        imageUrls = await Promise.all(images.map(img => uploadImage(img)));
       }
 
       const created = await apiCreatePost(token!, {
-        imageUrl,
+        imageUrls,
         caption: caption.trim(),
       });
 
       // Reset the form, then open the new post so the user sees it right away.
-      setImage(null);
+      setImages([]);
       setCaption('');
       navigation.navigate('PostDetail', { postId: created._id });
     } catch (e: any) {
@@ -112,22 +125,49 @@ export default function CreatePostScreen() {
           contentContainerStyle={styles.scroll}
           keyboardShouldPersistTaps="handled">
 
-          {/* Image picker / preview */}
-          {image ? (
-            <TouchableOpacity activeOpacity={0.9} onPress={handlePickImage}>
-              <Image source={{ uri: image.uri }} style={styles.preview} />
-              <View style={styles.changeOverlay}>
-                <Text style={styles.changeText}>Tap to change</Text>
-              </View>
-            </TouchableOpacity>
+          {/* Image picker / previews */}
+          {images.length ? (
+            <View>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.thumbStrip}>
+                {images.map((img, i) => (
+                  <View key={img.uri} style={styles.thumbWrap}>
+                    <Image source={{ uri: img.uri }} style={styles.thumb} />
+                    {/* index badge, IG-style */}
+                    <View style={styles.thumbBadge}>
+                      <Text style={styles.thumbBadgeText}>{i + 1}</Text>
+                    </View>
+                    <TouchableOpacity
+                      style={styles.thumbRemove}
+                      onPress={() => removeImage(img.uri)}
+                      hitSlop={8}>
+                      <Icon name="close" size={16} color={colors.white} />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+                {images.length < MAX_IMAGES && (
+                  <TouchableOpacity
+                    style={styles.addMore}
+                    activeOpacity={0.8}
+                    onPress={handlePickImages}>
+                    <Icon name="add" size={28} color={colors.textMuted} />
+                  </TouchableOpacity>
+                )}
+              </ScrollView>
+              <Text style={styles.thumbCount}>
+                {images.length} of {MAX_IMAGES} photos
+              </Text>
+            </View>
           ) : (
             <TouchableOpacity
               style={styles.picker}
               activeOpacity={0.8}
-              onPress={handlePickImage}>
-              <Icon name="image-outline" size={40} color={colors.textMuted} />
-              <Text style={styles.pickerText}>Add a photo</Text>
-              <Text style={styles.pickerHint}>(optional — you can post text only)</Text>
+              onPress={handlePickImages}>
+              <Icon name="images-outline" size={40} color={colors.textMuted} />
+              <Text style={styles.pickerText}>Add photos</Text>
+              <Text style={styles.pickerHint}>(up to {MAX_IMAGES} — or post text only)</Text>
             </TouchableOpacity>
           )}
 
@@ -202,25 +242,63 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.textMuted,
   },
-  preview: {
-    width: '100%',
-    height: 320,
+  thumbStrip: {
+    gap: spacing.md,
+    paddingVertical: spacing.xs,
+  },
+  thumbWrap: {
+    width: 150,
+    height: 200,
+  },
+  thumb: {
+    width: 150,
+    height: 200,
     borderRadius: radius.lg,
     backgroundColor: colors.surfaceAlt,
   },
-  changeOverlay: {
+  thumbBadge: {
     position: 'absolute',
-    bottom: spacing.md,
-    right: spacing.md,
-    backgroundColor: 'rgba(10,10,10,0.7)',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderRadius: radius.pill,
+    top: spacing.sm,
+    left: spacing.sm,
+    minWidth: 22,
+    height: 22,
+    paddingHorizontal: 6,
+    borderRadius: 11,
+    backgroundColor: 'rgba(10,10,10,0.65)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  changeText: {
+  thumbBadgeText: {
     color: colors.white,
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
+  },
+  thumbRemove: {
+    position: 'absolute',
+    top: spacing.sm,
+    right: spacing.sm,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(10,10,10,0.65)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addMore: {
+    width: 150,
+    height: 200,
+    borderRadius: radius.lg,
+    backgroundColor: colors.offWhite,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  thumbCount: {
+    marginTop: spacing.sm,
+    fontSize: 12,
+    color: colors.textMuted,
   },
   caption: {
     marginTop: spacing.lg,

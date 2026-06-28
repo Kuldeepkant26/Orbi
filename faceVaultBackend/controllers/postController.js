@@ -10,10 +10,20 @@ const PAGE_SIZE = 10;
 // wants — including whether *I* liked it and how many likes there are. This
 // keeps the heavy `likes` array off the wire.
 function shapePost(post, myId) {
+  // Older posts only have imageUrl; newer ones have an imageUrls array. Always
+  // send both so old and new clients work: imageUrls is the source of truth,
+  // falling back to the single imageUrl for legacy posts.
+  const imageUrls =
+    post.imageUrls && post.imageUrls.length
+      ? post.imageUrls
+      : post.imageUrl
+      ? [post.imageUrl]
+      : [];
   return {
     _id: post._id,
     author: post.author, // already populated with {_id, name, username, avatarUrl}
-    imageUrl: post.imageUrl,
+    imageUrl: post.imageUrl || imageUrls[0] || '',
+    imageUrls,
     caption: post.caption,
     likesCount: post.likes.length,
     likedByMe: post.likes.some((id) => String(id) === String(myId)),
@@ -26,15 +36,20 @@ function shapePost(post, myId) {
 const createPost = async (req, res) => {
   try {
     const { imageUrl = '', caption = '' } = req.body;
+    // New clients send an `imageUrls` array; fall back to the single imageUrl.
+    const rawUrls = Array.isArray(req.body.imageUrls) ? req.body.imageUrls : [];
+    const imageUrls = rawUrls.filter((u) => typeof u === 'string' && u.trim());
+    if (!imageUrls.length && imageUrl) imageUrls.push(imageUrl);
 
-    // A post must have at least an image or some caption text.
-    if (!imageUrl && !caption.trim()) {
+    // A post must have at least one image or some caption text.
+    if (!imageUrls.length && !caption.trim()) {
       return res.status(400).json({ message: 'Post needs an image or some text.' });
     }
 
     const post = await Post.create({
       author: req.userId,
-      imageUrl,
+      imageUrl: imageUrls[0] || '', // keep the legacy field populated
+      imageUrls,
       caption,
     });
 

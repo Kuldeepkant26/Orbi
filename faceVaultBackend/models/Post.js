@@ -11,9 +11,17 @@ const postSchema = new mongoose.Schema(
       required: true,
     },
     // Cloudinary image URL. Empty = a text-only post.
+    // Kept for backward compatibility / single-image posts; for multi-image
+    // posts this holds the first image so older clients still render something.
     imageUrl: {
       type: String,
       default: '',
+    },
+    // All Cloudinary image URLs for the post (carousel). For a single-image
+    // post this has one entry; empty for text-only posts.
+    imageUrls: {
+      type: [String],
+      default: [],
     },
     // The caption / text body.
     caption: {

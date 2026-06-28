@@ -18,7 +18,8 @@ export type PostAuthor = {
 export type Post = {
   _id: string;
   author: PostAuthor;
-  imageUrl: string;
+  imageUrl: string; // first image (legacy / single-image)
+  imageUrls?: string[]; // all images for the carousel
   caption: string;
   likesCount: number;
   likedByMe: boolean;
@@ -80,10 +81,11 @@ export async function apiFetchPost(token: string, postId: string): Promise<Post>
   return data;
 }
 
-// POST create a new post. imageUrl is optional (text-only posts allowed).
+// POST create a new post. Images are optional (text-only posts allowed).
+// Pass imageUrls for multi-image (carousel) posts; imageUrl still works for one.
 export async function apiCreatePost(
   token: string,
-  body: { imageUrl?: string; caption?: string }
+  body: { imageUrl?: string; imageUrls?: string[]; caption?: string }
 ): Promise<Post> {
   const res = await fetch(BASE_URL, {
     method: 'POST',

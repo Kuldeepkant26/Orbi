@@ -40,3 +40,22 @@ export async function pickImageFromGallery(): Promise<PickedImage | null> {
     type: asset.type,
   };
 }
+
+// Pick several images at once (for multi-image posts). `limit` caps how many
+// can be chosen; returns [] if the user cancelled.
+export async function pickImagesFromGallery(limit = 10): Promise<PickedImage[]> {
+  const result = await launchImageLibrary({
+    mediaType: 'photo',
+    quality: 0.8,
+    selectionLimit: limit, // 0 would mean unlimited on iOS; we always cap it
+  });
+
+  if (result.didCancel) return [];
+  if (result.errorCode) {
+    throw new Error(result.errorMessage || 'Could not open the photo library.');
+  }
+
+  return (result.assets || [])
+    .filter(a => !!a.uri)
+    .map(a => ({ uri: a.uri!, fileName: a.fileName, type: a.type }));
+}

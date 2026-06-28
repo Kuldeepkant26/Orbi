@@ -13,7 +13,7 @@ import {
   FlatList,
   Alert,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { AppStackParamList } from '../../App';
 import { useAuth } from '../context/AuthContext';
@@ -37,11 +37,12 @@ import { timeAgo } from '../utils/timeAgo';
 type Props = NativeStackScreenProps<AppStackParamList, 'StoryViewer'>;
 
 const { width, height } = Dimensions.get('window');
-const STORY_MS = 5000; // each story plays 5 seconds
+const STORY_MS = 15000; // each story plays 15 seconds
 
 export default function StoryViewerScreen({ route, navigation }: Props) {
   const { userId, userName } = route.params;
   const { token } = useAuth();
+  const insets = useSafeAreaInsets();
 
   const [stories, setStories] = useState<Story[]>([]);
   const [index, setIndex] = useState(0);
@@ -70,9 +71,13 @@ export default function StoryViewerScreen({ route, navigation }: Props) {
   }, [token, userId]);
 
   const goNext = useCallback(() => {
+    // Decide based on the current index without mutating navigation inside the
+    // setState updater (that fires during render and triggers a "setState while
+    // rendering" warning). Advance, or close past the last story.
     setIndex(i => {
       if (i < stories.length - 1) return i + 1;
-      navigation.goBack(); // past the last story → close
+      // Defer the goBack to after this render commits.
+      requestAnimationFrame(() => navigation.goBack());
       return i;
     });
   }, [stories.length, navigation]);
@@ -123,6 +128,14 @@ export default function StoryViewerScreen({ route, navigation }: Props) {
       Alert.alert('Error', e.message);
       setPaused(false);
     }
+  };
+
+  // Jump to the create-story screen to add another. Pause first so the timer
+  // doesn't advance while we're away.
+  const addAnotherStory = () => {
+    setPaused(true);
+    anim.current?.stop();
+    navigation.navigate('CreateStory');
   };
 
   const removeStory = () => {
@@ -185,7 +198,11 @@ export default function StoryViewerScreen({ route, navigation }: Props) {
         </TouchableWithoutFeedback>
       </View>
 
-      <SafeAreaView style={styles.overlay} pointerEvents="box-none">
+      {/* Top scrim improves contrast for the progress bar + header over bright photos. */}
+      <View style={[styles.topScrim, { height: insets.top + 120 }]} pointerEvents="none" />
+
+      {/* Top group: progress + header, pinned to the very top. */}
+      <View style={[styles.topGroup, { paddingTop: insets.top + 6 }]} pointerEvents="box-none">
         {/* Progress bars */}
         <View style={styles.progressRow}>
           {stories.map((s, i) => (
@@ -212,47 +229,56 @@ export default function StoryViewerScreen({ route, navigation }: Props) {
 
         {/* Header */}
         <View style={styles.header}>
-          <Avatar uri={current.author.avatarUrl} name={current.author.name} size={34} />
-          <Text style={styles.headerName}>
-            {current.author.username || userName}
-          </Text>
-          <Text style={styles.headerTime}>{timeAgo(current.createdAt)}</Text>
-          <View style={{ flex: 1 }} />
+          <Avatar uri={current.author.avatarUrl} name={current.author.name} size={36} />
+          <View style={styles.headerTextWrap}>
+            <Text style={styles.headerName} numberOfLines={1}>
+              {current.author.username || userName}
+            </Text>
+            <Text style={styles.headerTime}>{timeAgo(current.createdAt)}</Text>
+          </View>
           {current.isMine && (
-            <TouchableOpacity onPress={removeStory} style={styles.headerBtn}>
-              <Icon name="trash-outline" size={22} color="#fff" />
-            </TouchableOpacity>
+            <>
+              <TouchableOpacity onPress={addAnotherStory} style={styles.headerBtn} hitSlop={8}>
+                <Icon name="add-circle-outline" size={24} color="#fff" />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={removeStory} style={styles.headerBtn} hitSlop={8}>
+                <Icon name="trash-outline" size={22} color="#fff" />
+              </TouchableOpacity>
+            </>
           )}
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn} hitSlop={8}>
             <Icon name="close" size={26} color="#fff" />
           </TouchableOpacity>
         </View>
+      </View>
 
-        {/* Caption */}
-        {!!current.caption && (
-          <View style={styles.captionWrap} pointerEvents="none">
-            <Text style={styles.caption}>{current.caption}</Text>
-          </View>
-        )}
+      {/* Bottom scrim for caption + footer legibility. */}
+      <View style={styles.bottomScrim} pointerEvents="none" />
 
-        {/* Footer: own → viewers count; others → like */}
-        <View style={styles.footer}>
-          {current.isMine ? (
-            <TouchableOpacity style={styles.viewersBtn} onPress={openViewers}>
-              <Icon name="eye-outline" size={20} color="#fff" />
-              <Text style={styles.viewersText}>{current.viewsCount} viewers</Text>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity style={styles.likeBtn} onPress={toggleLike}>
-              <Icon
-                name={current.likedByMe ? 'heart' : 'heart-outline'}
-                size={30}
-                color={current.likedByMe ? '#ED4956' : '#fff'}
-              />
-            </TouchableOpacity>
-          )}
+      {/* Caption */}
+      {!!current.caption && (
+        <View style={[styles.captionWrap, { bottom: insets.bottom + 92 }]} pointerEvents="none">
+          <Text style={styles.caption}>{current.caption}</Text>
         </View>
-      </SafeAreaView>
+      )}
+
+      {/* Footer: own → viewers count; others → like, pinned to the bottom. */}
+      <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]} pointerEvents="box-none">
+        {current.isMine ? (
+          <TouchableOpacity style={styles.viewersBtn} onPress={openViewers}>
+            <Icon name="eye-outline" size={20} color="#fff" />
+            <Text style={styles.viewersText}>{current.viewsCount} viewers</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity style={styles.likeBtn} onPress={toggleLike} hitSlop={8}>
+            <Icon
+              name={current.likedByMe ? 'heart' : 'heart-outline'}
+              size={32}
+              color={current.likedByMe ? '#ED4956' : '#fff'}
+            />
+          </TouchableOpacity>
+        )}
+      </View>
 
       {/* Viewers sheet */}
       <Modal
@@ -309,21 +335,24 @@ const styles = StyleSheet.create({
   image: { position: 'absolute', top: 0, left: 0, width, height },
   tapZones: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, flexDirection: 'row' },
   tapZone: { flex: 1 },
-  overlay: { flex: 1, justifyContent: 'space-between' },
-  progressRow: { flexDirection: 'row', paddingHorizontal: 8, paddingTop: 8, gap: 4 },
+  topScrim: { position: 'absolute', top: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.28)' },
+  bottomScrim: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 160, backgroundColor: 'rgba(0,0,0,0.22)' },
+  topGroup: { position: 'absolute', top: 0, left: 0, right: 0 },
+  progressRow: { flexDirection: 'row', paddingHorizontal: 10, gap: 4 },
   progressTrack: {
     flex: 1,
-    height: 2.5,
-    borderRadius: 2,
-    backgroundColor: 'rgba(255,255,255,0.35)',
+    height: 3,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255,255,255,0.3)',
     overflow: 'hidden',
   },
-  progressFill: { height: 2.5, backgroundColor: '#fff' },
-  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingTop: 10 },
-  headerName: { color: '#fff', fontWeight: '700', fontSize: 14, marginLeft: 8 },
-  headerTime: { color: 'rgba(255,255,255,0.7)', fontSize: 12, marginLeft: 8 },
+  progressFill: { height: 3, borderRadius: 3, backgroundColor: '#fff' },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingTop: 14 },
+  headerTextWrap: { flex: 1, marginLeft: 10 },
+  headerName: { color: '#fff', fontWeight: '700', fontSize: 14.5, letterSpacing: 0.2 },
+  headerTime: { color: 'rgba(255,255,255,0.75)', fontSize: 11.5, marginTop: 1 },
   headerBtn: { padding: 6, marginLeft: 4 },
-  captionWrap: { position: 'absolute', bottom: 120, left: 0, right: 0, alignItems: 'center', paddingHorizontal: 24 },
+  captionWrap: { position: 'absolute', left: 0, right: 0, alignItems: 'center', paddingHorizontal: 24 },
   caption: {
     color: '#fff',
     fontSize: 16,
@@ -334,7 +363,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     overflow: 'hidden',
   },
-  footer: { paddingHorizontal: 16, paddingBottom: 16, alignItems: 'center' },
+  footer: { position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: 16, alignItems: 'center' },
   likeBtn: { padding: 8 },
   viewersBtn: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   viewersText: { color: '#fff', fontSize: 14, fontWeight: '600' },
