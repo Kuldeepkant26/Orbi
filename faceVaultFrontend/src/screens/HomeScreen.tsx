@@ -13,11 +13,12 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { AppStackParamList } from '../../App';
 import { useAuth } from '../context/AuthContext';
-import { apiFetchFeed, apiLikePost, Post } from '../api/postsApi';
+import { apiFetchFeed, apiLikePost, apiFetchPostLikers, Post } from '../api/postsApi';
 import PostCard from '../components/PostCard';
 import OrbiHeader from '../components/OrbiHeader';
 import StoryTray from '../components/StoryTray';
 import CommentsSheet from '../components/CommentsSheet';
+import UserListSheet, { SheetUser } from '../components/UserListSheet';
 import { FeedSkeleton } from '../components/skeletons';
 import { colors } from '../theme/colors';
 import { spacing } from '../theme/spacing';
@@ -43,6 +44,8 @@ export default function HomeScreen() {
   const [storyKey, setStoryKey] = useState(0);
   // The post whose comments sheet is open (null = closed).
   const [commentsFor, setCommentsFor] = useState<{ postId: string; authorId: string } | null>(null);
+  // The likers bottom sheet ({ title, fetcher } when open).
+  const [likersFor, setLikersFor] = useState<{ postId: string } | null>(null);
 
   // Load the first page (or reload on pull-to-refresh).
   const loadFeed = useCallback(async () => {
@@ -119,7 +122,7 @@ export default function HomeScreen() {
             onOpenComments={p =>
               setCommentsFor({ postId: p._id, authorId: p.author._id })
             }
-            onOpenLikers={p => navigation.navigate('Likers', { postId: p._id })}
+            onOpenLikers={p => setLikersFor({ postId: p._id })}
             onOpenProfile={userId => navigation.navigate('UserProfile', { userId })}
             onMessage={p =>
               navigation.navigate('Chat', {
@@ -182,6 +185,23 @@ export default function HomeScreen() {
             prev.map(p => (p._id === pid ? { ...p, commentsCount: total } : p)),
           )
         }
+      />
+
+      {/* Likers bottom sheet */}
+      <UserListSheet
+        visible={!!likersFor}
+        title="Likes"
+        fetcher={
+          likersFor
+            ? () =>
+                apiFetchPostLikers(token!, likersFor.postId) as Promise<SheetUser[]>
+            : null
+        }
+        onClose={() => setLikersFor(null)}
+        onOpenUser={userId => {
+          setLikersFor(null);
+          navigation.navigate('UserProfile', { userId });
+        }}
       />
     </SafeAreaView>
   );

@@ -8,11 +8,17 @@ import {
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { AppStackParamList } from '../../App';
 import { useAuth } from '../context/AuthContext';
-import { apiFetchProfile, apiToggleFollow, Profile } from '../api/socialApi';
+import {
+  apiFetchProfile,
+  apiToggleFollow,
+  apiFetchConnections,
+  Profile,
+} from '../api/socialApi';
 import { apiFetchUserPosts, Post } from '../api/postsApi';
 import { apiFetchUserHighlights, Highlight } from '../api/highlightsApi';
 import ProfileView from '../components/ProfileView';
 import HighlightsRow from '../components/HighlightsRow';
+import UserListSheet, { SheetUser } from '../components/UserListSheet';
 import { ProfileSkeleton } from '../components/skeletons';
 import { colors } from '../theme/colors';
 import { spacing, radius } from '../theme/spacing';
@@ -34,6 +40,10 @@ export default function UserProfileScreen({ route, navigation }: Props) {
   const [refreshing, setRefreshing] = useState(false);
   const [following, setFollowing] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [listSheet, setListSheet] = useState<{
+    title: string;
+    kind: 'followers' | 'following';
+  } | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -102,6 +112,7 @@ export default function UserProfileScreen({ route, navigation }: Props) {
   }
 
   return (
+    <View style={styles.container}>
     <ProfileView
       profile={profile}
       posts={posts}
@@ -118,18 +129,10 @@ export default function UserProfileScreen({ route, navigation }: Props) {
         })
       }
       onOpenFollowers={() =>
-        navigation.navigate('FollowList', {
-          userId: profile._id,
-          kind: 'followers',
-          title: 'Followers',
-        })
+        setListSheet({ title: 'Followers', kind: 'followers' })
       }
       onOpenFollowing={() =>
-        navigation.navigate('FollowList', {
-          userId: profile._id,
-          kind: 'following',
-          title: 'Following',
-        })
+        setListSheet({ title: 'Following', kind: 'following' })
       }
       highlights={
         <HighlightsRow
@@ -162,6 +165,26 @@ export default function UserProfileScreen({ route, navigation }: Props) {
         </>
       }
     />
+
+      {/* Followers / Following bottom sheet */}
+      <UserListSheet
+        visible={!!listSheet}
+        title={listSheet?.title || ''}
+        fetcher={
+          listSheet
+            ? () =>
+                apiFetchConnections(token!, profile._id, listSheet.kind) as Promise<
+                  SheetUser[]
+                >
+            : null
+        }
+        onClose={() => setListSheet(null)}
+        onOpenUser={userId => {
+          setListSheet(null);
+          navigation.push('UserProfile', { userId });
+        }}
+      />
+    </View>
   );
 }
 

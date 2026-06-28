@@ -3,9 +3,10 @@ import { View, StyleSheet, ScrollView } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { AppStackParamList } from '../../App';
 import { useAuth } from '../context/AuthContext';
-import { apiFetchPost, apiLikePost, Post } from '../api/postsApi';
+import { apiFetchPost, apiLikePost, apiFetchPostLikers, Post } from '../api/postsApi';
 import PostCard from '../components/PostCard';
 import CommentsSheet from '../components/CommentsSheet';
+import UserListSheet, { SheetUser } from '../components/UserListSheet';
 import { PostDetailSkeleton } from '../components/skeletons';
 import { colors } from '../theme/colors';
 
@@ -21,6 +22,7 @@ export default function PostDetailScreen({ route, navigation }: Props) {
   const [post, setPost] = useState<Post | null>(null);
   const [loading, setLoading] = useState(true);
   const [commentsOpen, setCommentsOpen] = useState(false);
+  const [likersOpen, setLikersOpen] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -56,7 +58,7 @@ export default function PostDetailScreen({ route, navigation }: Props) {
           post={post}
           onToggleLike={handleToggleLike}
           onOpenComments={() => setCommentsOpen(true)}
-          onOpenLikers={p => navigation.navigate('Likers', { postId: p._id })}
+          onOpenLikers={() => setLikersOpen(true)}
           onOpenProfile={userId => navigation.navigate('UserProfile', { userId })}
           onMessage={p =>
             navigation.navigate('Chat', {
@@ -74,6 +76,19 @@ export default function PostDetailScreen({ route, navigation }: Props) {
         onCountChange={(_pid, total) =>
           setPost(prev => (prev ? { ...prev, commentsCount: total } : prev))
         }
+      />
+
+      <UserListSheet
+        visible={likersOpen}
+        title="Likes"
+        fetcher={() =>
+          apiFetchPostLikers(token!, post._id) as Promise<SheetUser[]>
+        }
+        onClose={() => setLikersOpen(false)}
+        onOpenUser={userId => {
+          setLikersOpen(false);
+          navigation.navigate('UserProfile', { userId });
+        }}
       />
     </View>
   );
