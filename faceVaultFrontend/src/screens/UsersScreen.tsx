@@ -11,70 +11,67 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { AppStackParamList } from '../../App';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
-import { apiFetchUsers, UserItem } from '../api/usersApi';
+import { apiFetchConversations, Conversation } from '../api/usersApi';
+import Avatar from '../components/Avatar';
+import Icon from '../components/Icon';
 import { ListSkeleton } from '../components/skeletons';
+import { colors } from '../theme/colors';
+import { spacing, radius } from '../theme/spacing';
+import { timeAgo } from '../utils/timeAgo';
+
+// The DM list reached from the message icon. Shows recent CONVERSATIONS (people
+// you've chatted with), newest first, with the last message, a relative time,
+// an unread badge, and an online dot. Refreshes on focus and updates live when
+// a new message arrives over the socket.
 
 type Props = NativeStackScreenProps<AppStackParamList, 'Users'>;
-
-// A single coloured circle avatar showing the user's initial
-function Avatar({ name, online }: { name: string; online: boolean }) {
-  const initial = name.charAt(0).toUpperCase();
-  return (
-    <View style={styles.avatarWrapper}>
-      <View style={styles.avatar}>
-        <Text style={styles.avatarText}>{initial}</Text>
-      </View>
-      {/* Green dot = online */}
-      {online && <View style={styles.onlineDot} />}
-    </View>
-  );
-}
 
 export default function UsersScreen({ navigation }: Props) {
   const { token } = useAuth();
   const { socket } = useSocket();
 
-  const [users, setUsers] = useState<UserItem[]>([]);
+  const [convos, setConvos] = useState<Conversation[]>([]);
   const [onlineUsers, setOnlineUsers] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState('');
 
-  const loadUsers = useCallback(async () => {
+  const load = useCallback(async () => {
     try {
-      setError('');
-      const data = await apiFetchUsers(token!);
-      setUsers(data);
-    } catch (e: any) {
-      setError(e.message);
+      const data = await apiFetchConversations(token!);
+      setConvos(data);
+    } catch {
+      // ignore — pull to refresh can retry
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   }, [token]);
 
+  // Reload whenever this screen regains focus (e.g. after a chat).
   useEffect(() => {
-    loadUsers();
-  }, [loadUsers]);
+    const unsub = navigation.addListener('focus', load);
+    return unsub;
+  }, [navigation, load]);
 
-  // Listen for online/offline events from the socket
+  // Online presence + live refresh when a new message arrives.
   useEffect(() => {
     if (!socket) return;
+    const onOnline = (ids: string[]) => setOnlineUsers(ids);
+    const onUp = (id: string) => setOnlineUsers(p => [...new Set([...p, id])]);
+    const onDown = (id: string) => setOnlineUsers(p => p.filter(x => x !== id));
+    const onMessage = () => load(); // re-pull so order + last message update
 
-    socket.on('online_users', (ids: string[]) => setOnlineUsers(ids));
-    socket.on('user_online', (id: string) =>
-      setOnlineUsers(prev => [...new Set([...prev, id])])
-    );
-    socket.on('user_offline', (id: string) =>
-      setOnlineUsers(prev => prev.filter(uid => uid !== id))
-    );
-
+    socket.on('online_users', onOnline);
+    socket.on('user_online', onUp);
+    socket.on('user_offline', onDown);
+    socket.on('receive_message', onMessage);
     return () => {
-      socket.off('online_users');
-      socket.off('user_online');
-      socket.off('user_offline');
+      socket.off('online_users', onOnline);
+      socket.off('user_online', onUp);
+      socket.off('user_offline', onDown);
+      socket.off('receive_message', onMessage);
     };
-  }, [socket]);
+  }, [socket, load]);
 
   if (loading) {
     return (
@@ -84,64 +81,92 @@ export default function UsersScreen({ navigation }: Props) {
     );
   }
 
-  if (error) {
-    return (
-      <View style={styles.center}>
-        <Text style={styles.errorText}>{error}</Text>
-        <TouchableOpacity style={styles.retryBtn} onPress={loadUsers}>
-          <Text style={styles.retryText}>Try Again</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
   return (
     <View style={styles.container}>
       <FlatList
-        data={users}
-        keyExtractor={item => item._id}
+        data={convos}
+        keyExtractor={item => item.user._id}
         contentContainerStyle={styles.list}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={() => {
               setRefreshing(true);
-              loadUsers();
+              load();
             }}
-            tintColor="#4F46E5"
+            tintColor={colors.ink}
           />
         }
-        ListHeaderComponent={
-          <Text style={styles.sectionLabel}>
-            {users.length} {users.length === 1 ? 'person' : 'people'}
-          </Text>
-        }
         renderItem={({ item }) => {
-          const isOnline = onlineUsers.includes(item._id);
+          const isOnline = onlineUsers.includes(item.user._id);
+          const unread = item.unreadCount > 0;
+          const preview =
+            (item.lastMessage.fromMe ? 'You: ' : '') + item.lastMessage.text;
           return (
             <TouchableOpacity
-              style={styles.card}
-              activeOpacity={0.75}
+              style={styles.row}
+              activeOpacity={0.7}
               onPress={() =>
                 navigation.navigate('Chat', {
-                  otherUser: { _id: item._id, name: item.name, email: item.email },
+                  otherUser: {
+                    _id: item.user._id,
+                    name: item.user.name,
+                    email: item.user.email,
+                  },
                 })
               }>
-              <Avatar name={item.name} online={isOnline} />
-              <View style={styles.info}>
-                <Text style={styles.name}>{item.name}</Text>
-                <Text style={styles.email}>{item.email}</Text>
+              <View>
+                <Avatar
+                  uri={item.user.avatarUrl}
+                  name={item.user.name}
+                  size={54}
+                />
+                {isOnline && <View style={styles.onlineDot} />}
               </View>
-              <View style={styles.chatArrow}>
-                <Text style={styles.chatArrowIcon}>›</Text>
+
+              <View style={styles.info}>
+                <Text style={styles.name} numberOfLines={1}>
+                  {item.user.username
+                    ? `@${item.user.username}`
+                    : item.user.name}
+                </Text>
+                <Text
+                  style={[styles.preview, unread && styles.previewUnread]}
+                  numberOfLines={1}>
+                  {preview}
+                </Text>
+              </View>
+
+              <View style={styles.meta}>
+                <Text style={styles.time}>
+                  {timeAgo(item.lastMessage.createdAt)}
+                </Text>
+                {unread && (
+                  <View style={styles.countWrap}>
+                    <View style={styles.count}>
+                      <Text style={styles.countText}>
+                        {item.unreadCount > 9 ? '9+' : item.unreadCount}
+                      </Text>
+                    </View>
+                  </View>
+                )}
               </View>
             </TouchableOpacity>
           );
         }}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
         ListEmptyComponent={
-          <View style={styles.center}>
-            <Text style={styles.emptyText}>No other users yet</Text>
+          <View style={styles.empty}>
+            <Icon name="chatbubbles-outline" size={40} color={colors.textFaint} />
+            <Text style={styles.emptyTitle}>No messages yet</Text>
+            <Text style={styles.emptyText}>
+              Find people to start a conversation.
+            </Text>
+            <TouchableOpacity
+              style={styles.findBtn}
+              onPress={() => navigation.navigate('MainTabs')}>
+              <Text style={styles.findText}>Find people</Text>
+            </TouchableOpacity>
           </View>
         }
       />
@@ -152,114 +177,102 @@ export default function UsersScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F1F5F9',
-  },
-  center: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
+    backgroundColor: colors.background,
   },
   list: {
-    padding: 16,
-    paddingBottom: 32,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
   },
-  sectionLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#94A3B8',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    marginBottom: 12,
-    paddingLeft: 4,
-  },
-  card: {
+  row: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 14,
-    shadowColor: '#94A3B8',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  avatarWrapper: {
-    position: 'relative',
-    marginRight: 14,
-  },
-  avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#4F46E5',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: {
-    color: '#fff',
-    fontSize: 20,
-    fontWeight: '700',
+    paddingVertical: spacing.md,
   },
   onlineDot: {
     position: 'absolute',
     bottom: 1,
     right: 1,
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: '#10B981',
-    borderWidth: 2,
-    borderColor: '#fff',
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: '#22C55E',
+    borderWidth: 2.5,
+    borderColor: colors.background,
   },
   info: {
     flex: 1,
+    marginLeft: spacing.md,
   },
   name: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#0F172A',
-    marginBottom: 2,
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.ink,
   },
-  email: {
+  preview: {
     fontSize: 13,
-    color: '#64748B',
+    color: colors.textMuted,
+    marginTop: 3,
   },
-  chatArrow: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#F1F5F9',
+  previewUnread: {
+    color: colors.ink,
+    fontWeight: '600',
+  },
+  meta: {
+    alignItems: 'flex-end',
+    marginLeft: spacing.sm,
+  },
+  time: {
+    fontSize: 12,
+    color: colors.textMuted,
+  },
+  countWrap: {
+    marginTop: 6,
+  },
+  count: {
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    backgroundColor: colors.ink,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  chatArrowIcon: {
-    fontSize: 20,
-    color: '#4F46E5',
+  countText: {
+    color: colors.white,
+    fontSize: 11,
     fontWeight: '700',
   },
   separator: {
-    height: 10,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.border,
+    marginLeft: 54 + spacing.md,
   },
-  errorText: {
-    fontSize: 15,
-    color: '#EF4444',
-    textAlign: 'center',
-    marginBottom: 16,
+  empty: {
+    alignItems: 'center',
+    paddingTop: 120,
+    paddingHorizontal: spacing.xl,
   },
-  retryBtn: {
-    paddingHorizontal: 24,
-    paddingVertical: 10,
-    backgroundColor: '#4F46E5',
-    borderRadius: 12,
-  },
-  retryText: {
-    color: '#fff',
+  emptyTitle: {
+    fontSize: 18,
     fontWeight: '700',
+    color: colors.ink,
+    marginTop: spacing.md,
   },
   emptyText: {
-    color: '#94A3B8',
-    fontSize: 15,
+    fontSize: 14,
+    color: colors.textMuted,
+    textAlign: 'center',
+    marginTop: spacing.xs,
+  },
+  findBtn: {
+    marginTop: spacing.lg,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.md,
+    backgroundColor: colors.ink,
+    borderRadius: radius.md,
+  },
+  findText: {
+    color: colors.white,
+    fontWeight: '700',
   },
 });

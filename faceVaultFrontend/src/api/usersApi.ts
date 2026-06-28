@@ -34,6 +34,35 @@ export async function apiFetchUsers(token: string): Promise<UserItem[]> {
   return data;
 }
 
+// A recent conversation in the DM list.
+export type Conversation = {
+  user: {
+    _id: string;
+    name: string;
+    username?: string;
+    email: string;
+    avatarUrl?: string;
+  };
+  lastMessage: {
+    text: string;
+    createdAt: string;
+    fromMe: boolean;
+  };
+  unreadCount: number;
+};
+
+// Fetch my recent chats (people I've messaged), newest first.
+export async function apiFetchConversations(
+  token: string,
+): Promise<Conversation[]> {
+  const res = await fetch(`${BASE_URL}/conversations`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to load chats');
+  return data;
+}
+
 // Fetch the total unread message count + a per-sender breakdown (for badges).
 export async function apiFetchUnreadMessageCount(
   token: string,

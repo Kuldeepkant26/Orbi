@@ -6,6 +6,7 @@ const {
   getProfile,
   updateMyProfile,
   getUnreadMessageCount,
+  getConversations,
   getMessages,
   sendMessage,
   editMessage,
@@ -17,6 +18,7 @@ router.use(authenticate);
 
 router.get('/', getAllUsers);                          // list all users
 router.put('/me', updateMyProfile);                    // update my profile (avatar/bio/name)
+router.get('/conversations', getConversations);        // my recent chats (DM list)
 
 // Messaging (kept as-is). These literal "messages" paths must be declared
 // before the "/:userId/profile" param route so they aren't captured by it.

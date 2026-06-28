@@ -39,6 +39,86 @@ const getUnreadMessageCount = async (req, res) => {
   }
 };
 
+// GET /api/users/conversations — the people I've chatted with, newest first.
+// For each conversation partner returns their basic info, the last message, and
+// how many messages from them I haven't read (for the DM list / badges).
+const getConversations = async (req, res) => {
+  try {
+    const mongoose = require('mongoose');
+    const myId = new mongoose.Types.ObjectId(req.userId);
+
+    // Group every message into a conversation keyed by "the other person", and
+    // keep the most recent message + a running unread count.
+    const convos = await Message.aggregate([
+      { $match: { $or: [{ sender: myId }, { receiver: myId }] } },
+      { $sort: { createdAt: -1 } },
+      {
+        $group: {
+          _id: {
+            $cond: [{ $eq: ['$sender', myId] }, '$receiver', '$sender'],
+          },
+          lastMessage: { $first: '$$ROOT' },
+          unreadCount: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $eq: ['$receiver', myId] },
+                    { $eq: ['$isRead', false] },
+                    { $ne: ['$isDeleted', true] },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+        },
+      },
+      { $sort: { 'lastMessage.createdAt': -1 } },
+    ]);
+
+    // Attach the other user's public info (skip banned/deleted users).
+    const otherIds = convos.map(c => c._id);
+    const users = await User.find({
+      _id: { $in: otherIds },
+      isBanned: { $ne: true },
+      isDeleted: { $ne: true },
+    }).select('firstName lastName name username email avatarUrl');
+
+    const userMap = {};
+    users.forEach(u => {
+      userMap[String(u._id)] = u;
+    });
+
+    const result = convos
+      .filter(c => userMap[String(c._id)]) // drop convos with gone users
+      .map(c => {
+        const u = userMap[String(c._id)];
+        const lm = c.lastMessage;
+        return {
+          user: {
+            _id: u._id,
+            name: u.name,
+            username: u.username,
+            email: u.email,
+            avatarUrl: u.avatarUrl,
+          },
+          lastMessage: {
+            text: lm.isDeleted ? 'Message deleted' : lm.text,
+            createdAt: lm.createdAt,
+            fromMe: String(lm.sender) === String(req.userId),
+          },
+          unreadCount: c.unreadCount,
+        };
+      });
+
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ message: 'Something went wrong', error: error.message });
+  }
+};
+
 // GET /api/users/:userId/profile — public profile of a user (for the profile screen).
 // Returns their basic info, follower/following/post counts, and whether *I*
 // currently follow them (so the app can show "Follow" vs "Following").
@@ -195,6 +275,7 @@ module.exports = {
   getProfile,
   updateMyProfile,
   getUnreadMessageCount,
+  getConversations,
   getMessages,
   sendMessage,
   editMessage,

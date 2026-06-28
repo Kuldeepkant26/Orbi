@@ -72,12 +72,15 @@ export default function CreatePostScreen() {
         imageUrl = await uploadImage(image);
       }
 
-      await apiCreatePost(token!, { imageUrl, caption: caption.trim() });
+      const created = await apiCreatePost(token!, {
+        imageUrl,
+        caption: caption.trim(),
+      });
 
-      // Reset and jump to the feed to see it.
+      // Reset the form, then open the new post so the user sees it right away.
       setImage(null);
       setCaption('');
-      navigation.navigate('MainTabs');
+      navigation.navigate('PostDetail', { postId: created._id });
     } catch (e: any) {
       Alert.alert('Could not share post', e.message);
     } finally {
