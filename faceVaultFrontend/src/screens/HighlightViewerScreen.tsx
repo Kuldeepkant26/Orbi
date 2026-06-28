@@ -10,7 +10,7 @@ import {
   Animated,
   ActivityIndicator,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { AppStackParamList } from '../../App';
 import { useAuth } from '../context/AuthContext';
@@ -23,11 +23,12 @@ import Icon from '../components/Icon';
 type Props = NativeStackScreenProps<AppStackParamList, 'HighlightViewer'>;
 
 const { width, height } = Dimensions.get('window');
-const ITEM_MS = 4000;
+const ITEM_MS = 10000; // each highlight item plays for 10 seconds
 
 export default function HighlightViewerScreen({ route, navigation }: Props) {
   const { highlightId, ownerId } = route.params;
   const { token } = useAuth();
+  const insets = useSafeAreaInsets();
 
   const [highlight, setHighlight] = useState<Highlight | null>(null);
   const [index, setIndex] = useState(0);
@@ -111,7 +112,7 @@ export default function HighlightViewerScreen({ route, navigation }: Props) {
       </View>
 
       {/* Top bar (progress + header), pinned to the top. */}
-      <SafeAreaView style={styles.topBar} edges={['top']} pointerEvents="box-none">
+      <View style={[styles.topBar, { paddingTop: insets.top }]} pointerEvents="box-none">
         <View style={styles.progressRow}>
           {items.map((it, i) => (
             <View key={i} style={styles.track}>
@@ -139,7 +140,7 @@ export default function HighlightViewerScreen({ route, navigation }: Props) {
             <Icon name="close" size={26} color="#fff" />
           </TouchableOpacity>
         </View>
-      </SafeAreaView>
+      </View>
 
       {!!current.caption && (
         <View style={styles.captionWrap} pointerEvents="none">
