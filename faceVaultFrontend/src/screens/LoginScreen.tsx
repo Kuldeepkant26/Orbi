@@ -13,7 +13,11 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { AuthStackParamList } from '../../App';
-import { apiLogin, isVerificationResponse } from '../api/authApi';
+import {
+  apiLogin,
+  isVerificationResponse,
+  isBannedResponse,
+} from '../api/authApi';
 import { useAuth } from '../context/AuthContext';
 import OrbiLogo from '../components/OrbiLogo';
 import { colors } from '../theme/colors';
@@ -28,6 +32,10 @@ export default function LoginScreen({ navigation }: Props) {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  // Set when login is blocked because the account is banned.
+  const [ban, setBan] = useState<{ reason: string; expires: string | null } | null>(
+    null,
+  );
 
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
@@ -35,6 +43,7 @@ export default function LoginScreen({ navigation }: Props) {
       return;
     }
     setError('');
+    setBan(null);
     setLoading(true);
     try {
       const data = await apiLogin(email.trim(), password);
@@ -42,6 +51,11 @@ export default function LoginScreen({ navigation }: Props) {
       // told us to route the user to the verification screen.
       if (isVerificationResponse(data)) {
         navigation.navigate('VerifyOtp', { email: data.email });
+        return;
+      }
+      // If the account is banned, show the reason + when (if ever) it lifts.
+      if (isBannedResponse(data)) {
+        setBan({ reason: data.banReason, expires: data.banExpires });
         return;
       }
       await login(data.user, data.token);
@@ -70,6 +84,22 @@ export default function LoginScreen({ navigation }: Props) {
 
           {/* Form */}
           <View style={styles.form}>
+            {ban ? (
+              <View style={styles.banBox}>
+                <Text style={styles.banTitle}>Account restricted</Text>
+                {!!ban.reason && (
+                  <Text style={styles.banReason}>{ban.reason}</Text>
+                )}
+                <Text style={styles.banWhen}>
+                  {ban.expires
+                    ? `Your access returns on ${new Date(
+                        ban.expires,
+                      ).toLocaleDateString()}.`
+                    : 'This restriction is permanent.'}
+                </Text>
+              </View>
+            ) : null}
+
             {error ? (
               <View style={styles.errorBox}>
                 <Text style={styles.errorText}>{error}</Text>
@@ -168,6 +198,27 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     padding: spacing.md,
     marginBottom: spacing.lg,
+  },
+  banBox: {
+    backgroundColor: '#FEECEC',
+    borderRadius: radius.md,
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
+  },
+  banTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.danger,
+    marginBottom: spacing.xs,
+  },
+  banReason: {
+    fontSize: 14,
+    color: colors.ink,
+    marginBottom: spacing.xs,
+  },
+  banWhen: {
+    fontSize: 13,
+    color: colors.textMuted,
   },
   errorText: {
     color: colors.danger,

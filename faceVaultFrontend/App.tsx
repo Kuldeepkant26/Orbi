@@ -16,6 +16,8 @@ import UserProfileScreen from './src/screens/UserProfileScreen';
 import EditProfileScreen from './src/screens/EditProfileScreen';
 import PostDetailScreen from './src/screens/PostDetailScreen';
 import CommentsScreen from './src/screens/CommentsScreen';
+import ManagePeopleScreen from './src/screens/ManagePeopleScreen';
+import ManagePostsScreen from './src/screens/ManagePostsScreen';
 import IncomingCallScreen from './src/screens/IncomingCallScreen';
 import VideoCallScreen from './src/screens/VideoCallScreen';
 import OrbiLogo from './src/components/OrbiLogo';
@@ -42,6 +44,9 @@ export type AppStackParamList = {
   EditProfile: undefined;
   PostDetail: { postId: string };
   Comments: { postId: string };
+  // Superadmin-only moderation screens.
+  ManagePeople: undefined;
+  ManagePosts: undefined;
 };
 
 // ── Stacks ────────────────────────────────────────────────────────────────────
@@ -103,6 +108,16 @@ function AppNavigator() {
         name="Comments"
         component={CommentsScreen}
         options={{ title: 'Comments' }}
+      />
+      <AppStack.Screen
+        name="ManagePeople"
+        component={ManagePeopleScreen}
+        options={{ title: 'Manage People' }}
+      />
+      <AppStack.Screen
+        name="ManagePosts"
+        component={ManagePostsScreen}
+        options={{ title: 'Manage Posts' }}
       />
     </AppStack.Navigator>
   );

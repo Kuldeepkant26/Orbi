@@ -30,11 +30,14 @@ async function generateUniqueUsername(base) {
 function publicUser(user) {
     return {
         id: user._id,
-        name: user.name,
+        firstName: user.firstName || '',
+        lastName: user.lastName || '',
+        name: user.name, // derived "First Last" (kept for display fallback)
         email: user.email,
         username: user.username || '',
         avatarUrl: user.avatarUrl || '',
         bio: user.bio || '',
+        role: user.role || 'user',
     };
 }
 
@@ -58,7 +61,11 @@ async function issueOtp(user) {
 // (no token) — they must verify the code first.
 const signup = async (req, res) => {
     try {
-        const { name, email, password } = req.body;
+        const { firstName, lastName = '', email, password } = req.body;
+
+        if (!firstName || !firstName.trim()) {
+            return res.status(400).json({ message: 'First name is required' });
+        }
 
         const existingUser = await User.findOne({ email });
         if (existingUser) {
@@ -76,10 +83,13 @@ const signup = async (req, res) => {
         }
 
         const hashedPassword = await bcrypt.hash(password, 10);
-        const username = await generateUniqueUsername(name || email.split('@')[0]);
+        const username = await generateUniqueUsername(
+            `${firstName}${lastName}` || email.split('@')[0]
+        );
 
         const user = await User.create({
-            name,
+            firstName: firstName.trim(),
+            lastName: (lastName || '').trim(),
             email,
             password: hashedPassword,
             username,
@@ -177,6 +187,27 @@ const login = async (req, res) => {
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) {
             return res.status(400).json({ message: 'Invalid email or password' });
+        }
+
+        // ── Ban check ────────────────────────────────────────────────────────
+        // If the user is banned, block login. A ban with banExpires in the past
+        // has elapsed, so we auto-lift it. A permanent ban has banExpires = null.
+        if (user.isBanned) {
+            const expired =
+                user.banExpires && user.banExpires <= new Date();
+            if (expired) {
+                user.isBanned = false;
+                user.banReason = '';
+                user.banExpires = null;
+                await user.save();
+            } else {
+                return res.status(403).json({
+                    message: 'Your account has been restricted.',
+                    banned: true,
+                    banReason: user.banReason || '',
+                    banExpires: user.banExpires, // null = permanent
+                });
+            }
         }
 
         // Migration safety: accounts created BEFORE email verification existed

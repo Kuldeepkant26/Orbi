@@ -21,7 +21,8 @@ import { spacing, radius } from '../theme/spacing';
 type Props = NativeStackScreenProps<AuthStackParamList, 'Signup'>;
 
 export default function SignupScreen({ navigation }: Props) {
-  const [name, setName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -30,8 +31,8 @@ export default function SignupScreen({ navigation }: Props) {
   const [error, setError] = useState('');
 
   const handleSignup = async () => {
-    if (!name.trim() || !email.trim() || !password || !confirmPassword) {
-      setError('Please fill in all fields.');
+    if (!firstName.trim() || !email.trim() || !password || !confirmPassword) {
+      setError('Please fill in all required fields.');
       return;
     }
     if (password !== confirmPassword) {
@@ -47,7 +48,12 @@ export default function SignupScreen({ navigation }: Props) {
     try {
       // Signup no longer logs you in directly — it emails a code. We move to the
       // verify screen, passing along the email the code was sent to.
-      const data = await apiSignup(name.trim(), email.trim(), password);
+      const data = await apiSignup(
+        firstName.trim(),
+        lastName.trim(),
+        email.trim(),
+        password,
+      );
       navigation.navigate('VerifyOtp', { email: data.email });
     } catch (e: any) {
       setError(e.message || 'Something went wrong.');
@@ -87,14 +93,25 @@ export default function SignupScreen({ navigation }: Props) {
               </View>
             ) : null}
 
-            <TextInput
-              style={styles.input}
-              placeholder="Full name"
-              placeholderTextColor={colors.textFaint}
-              autoCapitalize="words"
-              value={name}
-              onChangeText={setName}
-            />
+            {/* First + Last name side by side */}
+            <View style={styles.nameRow}>
+              <TextInput
+                style={[styles.input, styles.nameInput]}
+                placeholder="First name"
+                placeholderTextColor={colors.textFaint}
+                autoCapitalize="words"
+                value={firstName}
+                onChangeText={setFirstName}
+              />
+              <TextInput
+                style={[styles.input, styles.nameInput]}
+                placeholder="Last name"
+                placeholderTextColor={colors.textFaint}
+                autoCapitalize="words"
+                value={lastName}
+                onChangeText={setLastName}
+              />
+            </View>
 
             <TextInput
               style={styles.input}
@@ -225,6 +242,13 @@ const styles = StyleSheet.create({
     color: colors.ink,
     backgroundColor: colors.offWhite,
     marginBottom: spacing.md,
+  },
+  nameRow: {
+    flexDirection: 'row',
+    gap: spacing.md,
+  },
+  nameInput: {
+    flex: 1,
   },
   passwordRow: {
     flexDirection: 'row',

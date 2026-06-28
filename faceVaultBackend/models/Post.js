@@ -33,6 +33,12 @@ const postSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    // Moderation: a superadmin can hide a post. Hidden posts are excluded from
+    // feeds and profile grids but kept in the database.
+    isHidden: {
+      type: Boolean,
+      default: false,
+    },
   },
   { timestamps: true }
 );

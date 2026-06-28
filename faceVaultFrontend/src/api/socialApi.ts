@@ -10,6 +10,8 @@ const NOTIF_URL = 'https://orbi-production.up.railway.app/api/notifications';
 // The full profile payload (from userController.getProfile).
 export type Profile = {
   _id: string;
+  firstName?: string;
+  lastName?: string;
   name: string;
   username: string;
   email: string;
@@ -57,7 +59,12 @@ export async function apiFetchProfile(
 // PUT update my own profile (name / bio / avatarUrl).
 export async function apiUpdateProfile(
   token: string,
-  updates: { name?: string; bio?: string; avatarUrl?: string }
+  updates: {
+    firstName?: string;
+    lastName?: string;
+    bio?: string;
+    avatarUrl?: string;
+  }
 ): Promise<Profile> {
   const res = await fetch(`${USERS_URL}/me`, {
     method: 'PUT',

@@ -4,9 +4,10 @@ const Message = require('../models/Message');
 // GET /api/users — return all users except the logged-in one
 const getAllUsers = async (req, res) => {
   try {
-    const users = await User.find({ _id: { $ne: req.userId } }).select(
-      'name username email avatarUrl bio'
-    );
+    const users = await User.find({
+      _id: { $ne: req.userId },
+      isBanned: { $ne: true }, // hide banned users from search
+    }).select('firstName lastName name username email avatarUrl bio');
     res.json(users);
   } catch (error) {
     res.status(500).json({ message: 'Something went wrong', error: error.message });
@@ -27,6 +28,8 @@ const getProfile = async (req, res) => {
 
     res.json({
       _id: user._id,
+      firstName: user.firstName || '',
+      lastName: user.lastName || '',
       name: user.name,
       username: user.username || '',
       email: user.email,
@@ -44,22 +47,27 @@ const getProfile = async (req, res) => {
   }
 };
 
-// PUT /api/users/me — update my own profile (avatar + bio + name).
+// PUT /api/users/me — update my own profile (avatar + bio + first/last name).
 const updateMyProfile = async (req, res) => {
   try {
-    const { name, bio, avatarUrl } = req.body;
+    const { firstName, lastName, bio, avatarUrl } = req.body;
 
-    // Only update the fields that were actually sent.
-    const updates = {};
-    if (typeof name === 'string' && name.trim()) updates.name = name.trim();
-    if (typeof bio === 'string') updates.bio = bio;
-    if (typeof avatarUrl === 'string') updates.avatarUrl = avatarUrl;
+    // Load the doc so the pre-save hook recomputes the derived `name`.
+    const user = await User.findById(req.userId);
+    if (!user) return res.status(404).json({ message: 'User not found' });
 
-    const user = await User.findByIdAndUpdate(req.userId, updates, {
-      new: true,
-    }).select('-password');
+    if (typeof firstName === 'string' && firstName.trim()) {
+      user.firstName = firstName.trim();
+    }
+    if (typeof lastName === 'string') user.lastName = lastName.trim();
+    if (typeof bio === 'string') user.bio = bio;
+    if (typeof avatarUrl === 'string') user.avatarUrl = avatarUrl;
 
-    res.json(user);
+    await user.save();
+
+    const safe = user.toObject();
+    delete safe.password;
+    res.json(safe);
   } catch (error) {
     res.status(500).json({ message: 'Something went wrong', error: error.message });
   }

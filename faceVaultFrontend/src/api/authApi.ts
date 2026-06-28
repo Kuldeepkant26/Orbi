@@ -2,13 +2,17 @@ const BASE_URL = 'https://orbi-production.up.railway.app/api/auth';
 
 export type AuthUser = {
   id: string;
-  name: string;
+  firstName: string;
+  lastName?: string;
+  name: string; // derived "First Last" — kept for display fallback
   email: string;
   // Social fields added for Orbi. Older sessions may not have these yet, so
   // they're optional and the app treats missing values as empty.
   username?: string;
   avatarUrl?: string;
   bio?: string;
+  // 'user' or 'superadmin'. Drives whether admin options show.
+  role?: string;
 };
 
 // A successful login / OTP verification returns a token + user.
@@ -26,9 +30,17 @@ type VerificationResponse = {
   email: string;
 };
 
-// apiLogin can return EITHER a real auth response OR a "needs verification"
-// response (HTTP 403). The caller checks `needsVerification` to decide.
-export type LoginResult = AuthResponse | VerificationResponse;
+// A login attempt by a banned user returns this (HTTP 403) instead of a token.
+export type BannedResponse = {
+  message: string;
+  banned: true;
+  banReason: string;
+  banExpires: string | null; // null = permanent
+};
+
+// apiLogin can return a real auth response, a "needs verification" response, or
+// a "banned" response. The caller checks the flags to decide what to show.
+export type LoginResult = AuthResponse | VerificationResponse | BannedResponse;
 
 export async function apiLogin(
   email: string,
@@ -41,9 +53,12 @@ export async function apiLogin(
   });
   const data = await res.json();
 
-  // 403 with needsVerification means: correct password, but email not verified.
+  // Both "not verified" and "banned" come back as 403 with a distinguishing flag.
   if (res.status === 403 && data.needsVerification) {
     return data as VerificationResponse;
+  }
+  if (res.status === 403 && data.banned) {
+    return data as BannedResponse;
   }
   if (!res.ok) throw new Error(data.message || 'Login failed');
   return data as AuthResponse;
@@ -51,14 +66,15 @@ export async function apiLogin(
 
 // Signup creates an unverified account and emails an OTP. No token yet.
 export async function apiSignup(
-  name: string,
+  firstName: string,
+  lastName: string,
   email: string,
   password: string,
 ): Promise<VerificationResponse> {
   const res = await fetch(`${BASE_URL}/signup`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, email, password }),
+    body: JSON.stringify({ firstName, lastName, email, password }),
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.message || 'Signup failed');
@@ -92,9 +108,13 @@ export async function apiResendOtp(email: string): Promise<{ message: string }> 
   return data;
 }
 
-// Small helper so screens can check which kind of result they got.
+// Small helpers so screens can check which kind of result they got.
 export function isVerificationResponse(
   r: LoginResult,
 ): r is VerificationResponse {
   return (r as VerificationResponse).needsVerification === true;
+}
+
+export function isBannedResponse(r: LoginResult): r is BannedResponse {
+  return (r as BannedResponse).banned === true;
 }

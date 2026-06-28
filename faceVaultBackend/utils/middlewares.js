@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const User = require('../models/User');
 
 const verifyToken = (req, res, next) => {
     const token = req.headers.authorization?.split(' ')[1]; // Expects: Bearer <token>
@@ -16,5 +17,20 @@ const verifyToken = (req, res, next) => {
     }
 };
 
+// Only allow superadmins through. Must run AFTER verifyToken (it needs req.userId).
+// Loads the user, checks their role, and stashes the user on req for handlers.
+const requireSuperadmin = async (req, res, next) => {
+    try {
+        const user = await User.findById(req.userId);
+        if (!user || user.role !== 'superadmin') {
+            return res.status(403).json({ message: 'Admin access required.' });
+        }
+        req.currentUser = user;
+        next();
+    } catch (error) {
+        return res.status(500).json({ message: 'Something went wrong', error: error.message });
+    }
+};
+
 // Export as both names so old and new code both work
-module.exports = { verifyToken, authenticate: verifyToken };
+module.exports = { verifyToken, authenticate: verifyToken, requireSuperadmin };

@@ -16,6 +16,8 @@ import { AppStackParamList } from '../../App';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
 import { apiFetchMessages, Message } from '../api/usersApi';
+import { apiFetchProfile, Profile } from '../api/socialApi';
+import Avatar from '../components/Avatar';
 
 type Props = NativeStackScreenProps<AppStackParamList, 'Chat'>;
 
@@ -29,6 +31,9 @@ export default function ChatScreen({ route, navigation }: Props) {
   const [loading, setLoading] = useState(true);
   const [isOtherTyping, setIsOtherTyping] = useState(false);
   const [editingMessage, setEditingMessage] = useState<Message | null>(null);
+  const [otherProfile, setOtherProfile] = useState<Profile | null>(null);
+  // Which of my messages is currently showing its inline Edit/Delete actions.
+  const [activeActionsId, setActiveActionsId] = useState<string | null>(null);
 
   const flatListRef = useRef<FlatList>(null);
   const typingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -45,15 +50,44 @@ export default function ChatScreen({ route, navigation }: Props) {
     })();
   }, [token, otherUser._id]);
 
-  // Set nav header title.
+  // Fetch the other user's profile so we can show their avatar + @username in
+  // the chat header (instead of just their name).
+  useEffect(() => {
+    (async () => {
+      try {
+        const p = await apiFetchProfile(token!, otherUser._id);
+        setOtherProfile(p);
+      } catch {
+        // Header falls back to the name we already have.
+      }
+    })();
+  }, [token, otherUser._id]);
+
+  // Custom header: tappable avatar + @username, opening the user's profile.
   //
-  // NOTE: Video calling is intentionally DISABLED for now. We keep the button
-  // visible but greyed out and non-functional (it just shows a small notice).
-  // The call wiring (startCall / CallContext) is left intact so this can be
-  // re-enabled later by restoring the onPress to startCall(...).
+  // NOTE: Video calling is intentionally DISABLED for now — the call button is
+  // greyed out. The call wiring (CallContext) is left intact for later.
   useEffect(() => {
     navigation.setOptions({
-      title: otherUser.name,
+      headerTitle: () => (
+        <TouchableOpacity
+          style={styles.headerUser}
+          activeOpacity={0.7}
+          onPress={() =>
+            navigation.navigate('UserProfile', { userId: otherUser._id })
+          }>
+          <Avatar
+            uri={otherProfile?.avatarUrl}
+            name={otherProfile?.name || otherUser.name}
+            size={32}
+          />
+          <Text style={styles.headerName} numberOfLines={1}>
+            {otherProfile?.username
+              ? `@${otherProfile.username}`
+              : otherUser.name}
+          </Text>
+        </TouchableOpacity>
+      ),
       headerRight: () => (
         <TouchableOpacity
           style={styles.callHeaderBtn}
@@ -67,7 +101,7 @@ export default function ChatScreen({ route, navigation }: Props) {
         </TouchableOpacity>
       ),
     });
-  }, [navigation, otherUser]);
+  }, [navigation, otherUser, otherProfile]);
 
   // ── Mark messages as read when screen opens ───────────────────────────────
   useEffect(() => {
@@ -174,20 +208,18 @@ export default function ChatScreen({ route, navigation }: Props) {
     if (typingTimeout.current) clearTimeout(typingTimeout.current);
   };
 
-  // ── Long-press a message to edit or delete ────────────────────────────────
-  const handleLongPress = (msg: Message) => {
-    // Can only edit/delete your own messages
-    if (msg.sender !== user?.id) return;
-    if (msg.isDeleted) return;
+  // Start editing a message (fills the input with its text).
+  const startEdit = (msg: Message) => {
+    setEditingMessage(msg);
+    setInputText(msg.text);
+    setActiveActionsId(null);
+  };
 
-    Alert.alert(otherUser.name, 'What do you want to do?', [
-      {
-        text: 'Edit',
-        onPress: () => {
-          setEditingMessage(msg);
-          setInputText(msg.text);
-        },
-      },
+  // Delete a message (with a confirm).
+  const confirmDelete = (msg: Message) => {
+    setActiveActionsId(null);
+    Alert.alert('Delete message', 'This message will be removed.', [
+      { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete',
         style: 'destructive',
@@ -198,8 +230,14 @@ export default function ChatScreen({ route, navigation }: Props) {
           });
         },
       },
-      { text: 'Cancel', style: 'cancel' },
     ]);
+  };
+
+  // Tapping one of MY messages toggles its inline Edit/Delete actions.
+  // (Long-press still works as a shortcut to the same actions.)
+  const toggleActions = (msg: Message) => {
+    if (msg.sender !== user?.id || msg.isDeleted) return;
+    setActiveActionsId(prev => (prev === msg._id ? null : msg._id));
   };
 
   // ── Format time e.g. "2:45 PM" ───────────────────────────────────────────
@@ -212,43 +250,59 @@ export default function ChatScreen({ route, navigation }: Props) {
   const renderMessage = useCallback(
     ({ item }: { item: Message }) => {
       const isMine = item.sender === user?.id;
+      const showActions = isMine && !item.isDeleted && activeActionsId === item._id;
 
       return (
-        <TouchableOpacity
-          activeOpacity={0.75}
-          onLongPress={() => handleLongPress(item)}
-          style={[styles.bubbleRow, isMine ? styles.myRow : styles.theirRow]}>
-          <View style={[styles.bubble, isMine ? styles.myBubble : styles.theirBubble]}>
-            {item.isDeleted ? (
-              <Text style={styles.deletedText}>This message was deleted</Text>
-            ) : (
-              <Text style={[styles.bubbleText, isMine ? styles.myText : styles.theirText]}>
-                {item.text}
-              </Text>
+        <View style={[styles.bubbleRow, isMine ? styles.myRow : styles.theirRow]}>
+          <View style={styles.bubbleWrap}>
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={() => toggleActions(item)}
+              onLongPress={() => toggleActions(item)}
+              style={[styles.bubble, isMine ? styles.myBubble : styles.theirBubble]}>
+              {item.isDeleted ? (
+                <Text style={styles.deletedText}>This message was deleted</Text>
+              ) : (
+                <Text style={[styles.bubbleText, isMine ? styles.myText : styles.theirText]}>
+                  {item.text}
+                </Text>
+              )}
+              {/* Time + status row */}
+              <View style={styles.metaRow}>
+                {item.isEdited && !item.isDeleted && (
+                  <Text style={[styles.editedLabel, isMine ? styles.myMeta : styles.theirMeta]}>
+                    edited ·{' '}
+                  </Text>
+                )}
+                <Text style={[styles.timeText, isMine ? styles.myMeta : styles.theirMeta]}>
+                  {formatTime(item.createdAt)}
+                </Text>
+                {/* Read receipt — double tick for my messages */}
+                {isMine && !item.isDeleted && (
+                  <Text style={[styles.tickText, item.isRead ? styles.tickRead : styles.tickUnread]}>
+                    {item.isRead ? ' ✓✓' : ' ✓'}
+                  </Text>
+                )}
+              </View>
+            </TouchableOpacity>
+
+            {/* Visible Edit / Delete actions for my own messages (tap to reveal) */}
+            {showActions && (
+              <View style={styles.actionsRow}>
+                <TouchableOpacity onPress={() => startEdit(item)} style={styles.actionPill}>
+                  <Text style={styles.actionText}>Edit</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => confirmDelete(item)} style={styles.actionPill}>
+                  <Text style={[styles.actionText, styles.actionDelete]}>Delete</Text>
+                </TouchableOpacity>
+              </View>
             )}
-            {/* Time + status row */}
-            <View style={styles.metaRow}>
-              {item.isEdited && !item.isDeleted && (
-                <Text style={[styles.editedLabel, isMine ? styles.myMeta : styles.theirMeta]}>
-                  edited ·{' '}
-                </Text>
-              )}
-              <Text style={[styles.timeText, isMine ? styles.myMeta : styles.theirMeta]}>
-                {formatTime(item.createdAt)}
-              </Text>
-              {/* Read receipt — double tick for my messages */}
-              {isMine && !item.isDeleted && (
-                <Text style={[styles.tickText, item.isRead ? styles.tickRead : styles.tickUnread]}>
-                  {item.isRead ? ' ✓✓' : ' ✓'}
-                </Text>
-              )}
-            </View>
           </View>
-        </TouchableOpacity>
+        </View>
       );
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [user?.id]
+    [user?.id, activeActionsId]
   );
 
   if (loading) {
@@ -343,10 +397,48 @@ const styles = StyleSheet.create({
     padding: 12,
     paddingBottom: 8,
   },
+  // ── Header (avatar + @username) ────────────────────────────────────────────
+  headerUser: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    maxWidth: 220,
+  },
+  headerName: {
+    marginLeft: 8,
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
   // ── Bubble rows ────────────────────────────────────────────────────────────
   bubbleRow: {
     marginVertical: 3,
     flexDirection: 'row',
+  },
+  bubbleWrap: {
+    maxWidth: '78%',
+  },
+  // ── Inline message actions (Edit / Delete) ─────────────────────────────────
+  actionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 4,
+  },
+  actionPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    marginLeft: 6,
+    backgroundColor: '#fff',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  actionText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  actionDelete: {
+    color: '#E5484D',
   },
   myRow: {
     justifyContent: 'flex-end',
@@ -355,7 +447,6 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
   },
   bubble: {
-    maxWidth: '78%',
     borderRadius: 18,
     paddingHorizontal: 14,
     paddingVertical: 9,

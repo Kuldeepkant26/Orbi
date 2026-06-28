@@ -1,10 +1,24 @@
 const mongoose = require('mongoose');
 
 const userSchema = new mongoose.Schema({
-    name: {
+    // ── Name ──────────────────────────────────────────────────────────────────
+    // First/last are the source of truth (collected at signup & edit profile).
+    // `name` is a derived "First Last" string we keep in sync via the pre-save
+    // hook below, so existing code that reads `user.name` keeps working.
+    firstName: {
         type: String,
         required: true,
-        trim: true
+        trim: true,
+    },
+    lastName: {
+        type: String,
+        default: '',
+        trim: true,
+    },
+    name: {
+        type: String,
+        default: '',
+        trim: true,
     },
     email: {
         type: String,
@@ -72,6 +86,36 @@ const userSchema = new mongoose.Schema({
         type: Number,
         default: 0,
     },
+
+    // ── Role & moderation ─────────────────────────────────────────────────────
+    // Only "superadmin" gets moderation powers (manage people/posts, ban).
+    role: {
+        type: String,
+        enum: ['user', 'superadmin'],
+        default: 'user',
+    },
+    // A banned user can't log in. We record why and (optionally) when the ban
+    // lifts — banExpires === null means a permanent ban.
+    isBanned: {
+        type: Boolean,
+        default: false,
+    },
+    banReason: {
+        type: String,
+        default: '',
+    },
+    banExpires: {
+        type: Date,
+        default: null, // null = permanent (while isBanned is true)
+    },
 }, { timestamps: true });
+
+// Keep the derived `name` ("First Last") in sync whenever first/last change.
+// (Mongoose 9 pre-save hooks use async functions without a `next` callback.)
+userSchema.pre('save', async function () {
+    if (this.isModified('firstName') || this.isModified('lastName')) {
+        this.name = `${this.firstName} ${this.lastName || ''}`.trim();
+    }
+});
 
 module.exports = mongoose.model('User', userSchema);

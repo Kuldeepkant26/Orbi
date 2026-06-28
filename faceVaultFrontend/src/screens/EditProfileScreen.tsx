@@ -28,7 +28,8 @@ type Props = NativeStackScreenProps<AppStackParamList, 'EditProfile'>;
 export default function EditProfileScreen({ navigation }: Props) {
   const { user, token, updateUser } = useAuth();
 
-  const [name, setName] = useState(user?.name || '');
+  const [firstName, setFirstName] = useState(user?.firstName || '');
+  const [lastName, setLastName] = useState(user?.lastName || '');
   const [bio, setBio] = useState(user?.bio || '');
   const [avatarUrl, setAvatarUrl] = useState(user?.avatarUrl || '');
   const [uploading, setUploading] = useState(false);
@@ -59,19 +60,28 @@ export default function EditProfileScreen({ navigation }: Props) {
   };
 
   const handleSave = async () => {
-    if (!name.trim()) {
-      Alert.alert('Name required', 'Please enter your name.');
+    if (!firstName.trim()) {
+      Alert.alert('Name required', 'Please enter your first name.');
       return;
     }
     setSaving(true);
     try {
       await apiUpdateProfile(token!, {
-        name: name.trim(),
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
         bio,
         avatarUrl,
       });
-      // Update the stored user so the whole app reflects the change.
-      await updateUser({ name: name.trim(), bio, avatarUrl });
+      // Update the stored user so the whole app reflects the change. The derived
+      // display name is "First Last".
+      const fullName = `${firstName.trim()} ${lastName.trim()}`.trim();
+      await updateUser({
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        name: fullName,
+        bio,
+        avatarUrl,
+      });
       navigation.goBack();
     } catch (e: any) {
       Alert.alert('Could not save', e.message);
@@ -88,7 +98,7 @@ export default function EditProfileScreen({ navigation }: Props) {
 
       {/* Avatar */}
       <View style={styles.avatarSection}>
-        <Avatar uri={avatarUrl} name={name} size={96} />
+        <Avatar uri={avatarUrl} name={firstName} size={96} />
         <TouchableOpacity onPress={handleChangeAvatar} disabled={uploading}>
           {uploading ? (
             <ActivityIndicator color={colors.ink} style={{ marginTop: spacing.md }} />
@@ -98,14 +108,26 @@ export default function EditProfileScreen({ navigation }: Props) {
         </TouchableOpacity>
       </View>
 
-      {/* Name */}
-      <Text style={styles.label}>Name</Text>
+      {/* First name */}
+      <Text style={styles.label}>First name</Text>
       <TextInput
         style={styles.input}
-        value={name}
-        onChangeText={setName}
-        placeholder="Your name"
+        value={firstName}
+        onChangeText={setFirstName}
+        placeholder="First name"
         placeholderTextColor={colors.textFaint}
+        autoCapitalize="words"
+      />
+
+      {/* Last name */}
+      <Text style={styles.label}>Last name</Text>
+      <TextInput
+        style={styles.input}
+        value={lastName}
+        onChangeText={setLastName}
+        placeholder="Last name"
+        placeholderTextColor={colors.textFaint}
+        autoCapitalize="words"
       />
 
       {/* Bio */}

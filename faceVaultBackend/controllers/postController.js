@@ -57,7 +57,10 @@ const getFeed = async (req, res) => {
     const me = await User.findById(req.userId).select('following');
     const authorIds = [req.userId, ...(me?.following || [])];
 
-    const posts = await Post.find({ author: { $in: authorIds } })
+    const posts = await Post.find({
+      author: { $in: authorIds },
+      isHidden: { $ne: true }, // exclude moderator-hidden posts
+    })
       .sort({ createdAt: -1 })
       .skip((page - 1) * PAGE_SIZE)
       .limit(PAGE_SIZE)
@@ -72,7 +75,10 @@ const getFeed = async (req, res) => {
 // GET /api/posts/user/:userId — all posts by one user (for their profile grid).
 const getUserPosts = async (req, res) => {
   try {
-    const posts = await Post.find({ author: req.params.userId })
+    const posts = await Post.find({
+      author: req.params.userId,
+      isHidden: { $ne: true }, // exclude moderator-hidden posts
+    })
       .sort({ createdAt: -1 })
       .populate('author', 'name username avatarUrl');
 
