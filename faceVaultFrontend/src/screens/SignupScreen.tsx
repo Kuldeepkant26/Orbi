@@ -14,7 +14,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { AuthStackParamList } from '../../App';
 import { apiSignup } from '../api/authApi';
-import { useAuth } from '../context/AuthContext';
 import OrbiLogo from '../components/OrbiLogo';
 import { colors } from '../theme/colors';
 import { spacing, radius } from '../theme/spacing';
@@ -22,7 +21,6 @@ import { spacing, radius } from '../theme/spacing';
 type Props = NativeStackScreenProps<AuthStackParamList, 'Signup'>;
 
 export default function SignupScreen({ navigation }: Props) {
-  const { login } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -47,8 +45,10 @@ export default function SignupScreen({ navigation }: Props) {
     setError('');
     setLoading(true);
     try {
+      // Signup no longer logs you in directly — it emails a code. We move to the
+      // verify screen, passing along the email the code was sent to.
       const data = await apiSignup(name.trim(), email.trim(), password);
-      await login(data.user, data.token);
+      navigation.navigate('VerifyOtp', { email: data.email });
     } catch (e: any) {
       setError(e.message || 'Something went wrong.');
     } finally {

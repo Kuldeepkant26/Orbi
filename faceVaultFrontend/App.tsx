@@ -8,6 +8,7 @@ import { SocketProvider } from './src/context/SocketContext';
 import { CallProvider, useCall } from './src/context/CallContext';
 import LoginScreen from './src/screens/LoginScreen';
 import SignupScreen from './src/screens/SignupScreen';
+import VerifyOtpScreen from './src/screens/VerifyOtpScreen';
 import MainTabs from './src/navigation/MainTabs';
 import UsersScreen from './src/screens/UsersScreen';
 import ChatScreen from './src/screens/ChatScreen';
@@ -25,6 +26,8 @@ import { colors } from './src/theme/colors';
 export type AuthStackParamList = {
   Login: undefined;
   Signup: undefined;
+  // The email we just sent a code to is passed along to the verify screen.
+  VerifyOtp: { email: string };
 };
 
 // The logged-in app: a bottom-tab navigator (MainTabs) plus detail screens that
@@ -51,6 +54,7 @@ function AuthNavigator() {
     <AuthStack.Navigator screenOptions={{ headerShown: false }}>
       <AuthStack.Screen name="Login" component={LoginScreen} />
       <AuthStack.Screen name="Signup" component={SignupScreen} />
+      <AuthStack.Screen name="VerifyOtp" component={VerifyOtpScreen} />
     </AuthStack.Navigator>
   );
 }

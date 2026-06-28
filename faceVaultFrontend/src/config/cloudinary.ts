@@ -13,8 +13,10 @@
 // Until these are set, image uploads will fail with a friendly message and the
 // rest of the app keeps working (you can still create text-only posts).
 
-export const CLOUD_NAME = 'dje2ljyce'; // Cloudinary cloud name
-export const UPLOAD_PRESET = 'orbi_unsigned'; // unsigned preset (uploads land in the "orbi" folder)
+// Typed as `string` (not the literal) so the "is it still a placeholder?" check
+// below type-checks even after real values are filled in.
+export const CLOUD_NAME: string = 'dje2ljyce'; // Cloudinary cloud name
+export const UPLOAD_PRESET: string = 'orbi_unsigned'; // unsigned preset (uploads land in the "orbi" folder)
 
 // True only once both values have been filled in. The upload code checks this
 // so it can show a clear "configure Cloudinary" message instead of a raw error.

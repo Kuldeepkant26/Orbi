@@ -13,7 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { AuthStackParamList } from '../../App';
-import { apiLogin } from '../api/authApi';
+import { apiLogin, isVerificationResponse } from '../api/authApi';
 import { useAuth } from '../context/AuthContext';
 import OrbiLogo from '../components/OrbiLogo';
 import { colors } from '../theme/colors';
@@ -38,6 +38,12 @@ export default function LoginScreen({ navigation }: Props) {
     setLoading(true);
     try {
       const data = await apiLogin(email.trim(), password);
+      // If the account isn't verified yet, the server sent a fresh code and
+      // told us to route the user to the verification screen.
+      if (isVerificationResponse(data)) {
+        navigation.navigate('VerifyOtp', { email: data.email });
+        return;
+      }
       await login(data.user, data.token);
     } catch (e: any) {
       setError(e.message || 'Something went wrong.');

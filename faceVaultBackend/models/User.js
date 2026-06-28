@@ -18,6 +18,23 @@ const userSchema = new mongoose.Schema({
         required: true
     },
 
+    // ── Email verification (OTP) ──────────────────────────────────────────────
+    // A new account starts UNVERIFIED. The user must enter the 6-digit code we
+    // email them before they can log in. We store the code HASHED (never plain)
+    // with an expiry, exactly like a password.
+    isVerified: {
+        type: Boolean,
+        default: false,
+    },
+    otpHash: {
+        type: String,
+        default: null,
+    },
+    otpExpires: {
+        type: Date,
+        default: null,
+    },
+
     // ── Social / profile fields (added for Orbi) ──────────────────────────────
     // A unique handle shown like "@username". Derived from the name at signup
     // if the user doesn't pick one.
