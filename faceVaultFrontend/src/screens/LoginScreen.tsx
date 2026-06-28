@@ -26,7 +26,7 @@ import { spacing, radius } from '../theme/spacing';
 type Props = NativeStackScreenProps<AuthStackParamList, 'Login'>;
 
 export default function LoginScreen({ navigation }: Props) {
-  const { login } = useAuth();
+  const { login, setWelcome } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -58,6 +58,8 @@ export default function LoginScreen({ navigation }: Props) {
         setBan({ reason: data.banReason, expires: data.banExpires });
         return;
       }
+      // Show "Welcome back, <first name>" once we're in.
+      setWelcome({ mode: 'back', name: data.user.firstName || data.user.name });
       await login(data.user, data.token);
     } catch (e: any) {
       setError(e.message || 'Something went wrong.');

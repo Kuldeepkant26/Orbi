@@ -5,6 +5,7 @@ import { AppStackParamList } from '../../App';
 import { useAuth } from '../context/AuthContext';
 import { apiFetchPost, apiLikePost, Post } from '../api/postsApi';
 import PostCard from '../components/PostCard';
+import CommentsSheet from '../components/CommentsSheet';
 import { PostDetailSkeleton } from '../components/skeletons';
 import { colors } from '../theme/colors';
 
@@ -19,6 +20,7 @@ export default function PostDetailScreen({ route, navigation }: Props) {
 
   const [post, setPost] = useState<Post | null>(null);
   const [loading, setLoading] = useState(true);
+  const [commentsOpen, setCommentsOpen] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -48,19 +50,31 @@ export default function PostDetailScreen({ route, navigation }: Props) {
   }
 
   return (
-    <ScrollView style={styles.container}>
-      <PostCard
-        post={post}
-        onToggleLike={handleToggleLike}
-        onOpenComments={p => navigation.navigate('Comments', { postId: p._id })}
-        onOpenProfile={userId => navigation.navigate('UserProfile', { userId })}
-        onMessage={p =>
-          navigation.navigate('Chat', {
-            otherUser: { _id: p.author._id, name: p.author.name, email: '' },
-          })
+    <View style={styles.container}>
+      <ScrollView>
+        <PostCard
+          post={post}
+          onToggleLike={handleToggleLike}
+          onOpenComments={() => setCommentsOpen(true)}
+          onOpenProfile={userId => navigation.navigate('UserProfile', { userId })}
+          onMessage={p =>
+            navigation.navigate('Chat', {
+              otherUser: { _id: p.author._id, name: p.author.name, email: '' },
+            })
+          }
+        />
+      </ScrollView>
+
+      <CommentsSheet
+        visible={commentsOpen}
+        postId={post._id}
+        postAuthorId={post.author._id}
+        onClose={() => setCommentsOpen(false)}
+        onCountChange={(_pid, total) =>
+          setPost(prev => (prev ? { ...prev, commentsCount: total } : prev))
         }
       />
-    </ScrollView>
+    </View>
   );
 }
 

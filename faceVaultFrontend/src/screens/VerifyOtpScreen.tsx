@@ -29,7 +29,7 @@ const RESEND_COOLDOWN = 30; // seconds before "Resend" can be tapped again
 
 export default function VerifyOtpScreen({ route, navigation }: Props) {
   const { email } = route.params;
-  const { login } = useAuth();
+  const { login, setWelcome } = useAuth();
 
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
@@ -62,6 +62,8 @@ export default function VerifyOtpScreen({ route, navigation }: Props) {
     setLoading(true);
     try {
       const data = await apiVerifyOtp(email, value);
+      // Brand-new account → "Welcome to Orbi, <first name>".
+      setWelcome({ mode: 'new', name: data.user.firstName || data.user.name });
       // Success → log in (stores token + user, app switches to the main tabs).
       await login(data.user, data.token);
     } catch (e: any) {

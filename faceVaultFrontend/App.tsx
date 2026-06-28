@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, ActivityIndicator, StyleSheet, Modal } from 'react-native';
+import { Modal } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -30,7 +30,8 @@ import HighlightViewerScreen from './src/screens/HighlightViewerScreen';
 import CreateHighlightScreen from './src/screens/CreateHighlightScreen';
 import IncomingCallScreen from './src/screens/IncomingCallScreen';
 import VideoCallScreen from './src/screens/VideoCallScreen';
-import OrbiLogo from './src/components/OrbiLogo';
+import SplashScreen from './src/screens/SplashScreen';
+import WelcomeScreen from './src/screens/WelcomeScreen';
 import { colors } from './src/theme/colors';
 
 // ── Navigation param types ────────────────────────────────────────────────────
@@ -217,19 +218,11 @@ function CallOverlay() {
 // ── Root navigator ────────────────────────────────────────────────────────────
 
 function RootNavigator() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, welcome, clearWelcome } = useAuth();
 
+  // Cold-open splash while we check for a saved session.
   if (isLoading) {
-    return (
-      <View style={styles.splash}>
-        <OrbiLogo size={64} />
-        <ActivityIndicator
-          color={colors.ink}
-          size="small"
-          style={{ marginTop: 28 }}
-        />
-      </View>
-    );
+    return <SplashScreen />;
   }
 
   return (
@@ -237,6 +230,10 @@ function RootNavigator() {
       {isAuthenticated ? <AppNavigator /> : <AuthNavigator />}
       {/* Call overlay stays mounted while logged in so it can receive events. */}
       {isAuthenticated && <CallOverlay />}
+      {/* Brief animated welcome after login/signup; auto-dismisses. */}
+      {isAuthenticated && welcome && (
+        <WelcomeScreen mode={welcome.mode} name={welcome.name} onDone={clearWelcome} />
+      )}
     </NavigationContainer>
   );
 }
@@ -264,11 +261,3 @@ export default function App() {
   );
 }
 
-const styles = StyleSheet.create({
-  splash: {
-    flex: 1,
-    backgroundColor: colors.background,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});

@@ -26,12 +26,16 @@ export type Post = {
   createdAt: string;
 };
 
-// A comment on a post.
+// A comment on a post (may be a reply via `parent`).
 export type Comment = {
   _id: string;
   post: string;
   author: PostAuthor;
   text: string;
+  parent: string | null;
+  isPinned: boolean;
+  likesCount: number;
+  likedByMe: boolean;
   createdAt: string;
 };
 
@@ -119,18 +123,50 @@ export async function apiFetchComments(
   return data;
 }
 
-// POST a new comment.
+// POST a new comment, or a reply when parentId is given.
 export async function apiAddComment(
   token: string,
   postId: string,
-  text: string
+  text: string,
+  parentId?: string | null
 ): Promise<Comment> {
   const res = await fetch(`${BASE_URL}/${postId}/comments`, {
     method: 'POST',
     headers: authHeaders(token),
-    body: JSON.stringify({ text }),
+    body: JSON.stringify({ text, parentId: parentId || null }),
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.message || 'Failed to add comment');
+  return data;
+}
+
+// POST/DELETE like on a comment.
+export async function apiLikeComment(
+  token: string,
+  commentId: string,
+  like: boolean
+): Promise<{ likesCount: number; likedByMe: boolean }> {
+  const res = await fetch(`${BASE_URL}/comments/${commentId}/like`, {
+    method: like ? 'POST' : 'DELETE',
+    headers: authHeaders(token),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to like comment');
+  return data;
+}
+
+// POST pin / unpin a comment (post owner only).
+export async function apiPinComment(
+  token: string,
+  commentId: string,
+  pin: boolean
+): Promise<{ isPinned: boolean }> {
+  const res = await fetch(`${BASE_URL}/comments/${commentId}/pin`, {
+    method: 'POST',
+    headers: authHeaders(token),
+    body: JSON.stringify({ pin }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to pin comment');
   return data;
 }

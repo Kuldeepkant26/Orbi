@@ -144,23 +144,40 @@ const unlikePost = async (req, res) => {
   }
 };
 
-// GET /api/posts/:postId/comments — list a post's comments (oldest first).
+// Shape a comment for the client (likes → count + likedByMe).
+function shapeComment(c, myId) {
+  return {
+    _id: c._id,
+    post: c.post,
+    author: c.author,
+    text: c.text,
+    parent: c.parent || null,
+    isPinned: c.isPinned,
+    likesCount: c.likes.length,
+    likedByMe: c.likes.some(id => String(id) === String(myId)),
+    createdAt: c.createdAt,
+  };
+}
+
+// GET /api/posts/:postId/comments — all of a post's comments (flat list; the
+// app builds the reply tree from `parent`). Pinned first, then oldest-first.
 const getComments = async (req, res) => {
   try {
     const comments = await Comment.find({ post: req.params.postId })
-      .sort({ createdAt: 1 })
+      .sort({ isPinned: -1, createdAt: 1 })
       .populate('author', 'name username avatarUrl');
 
-    res.json(comments);
+    res.json(comments.map(c => shapeComment(c, req.userId)));
   } catch (error) {
     res.status(500).json({ message: 'Something went wrong', error: error.message });
   }
 };
 
-// POST /api/posts/:postId/comments — add a comment.
+// POST /api/posts/:postId/comments — add a comment or reply.
+// Body: { text, parentId? }  (parentId set = it's a reply)
 const addComment = async (req, res) => {
   try {
-    const { text } = req.body;
+    const { text, parentId = null } = req.body;
     if (!text || !text.trim()) {
       return res.status(400).json({ message: 'Comment cannot be empty.' });
     }
@@ -172,22 +189,85 @@ const addComment = async (req, res) => {
       post: post._id,
       author: req.userId,
       text,
+      parent: parentId || null,
     });
 
-    // Keep the post's comment count in sync.
+    // Keep the post's comment count in sync (replies count too).
     post.commentsCount += 1;
     await post.save();
 
-    // Notify the post's author.
+    // Notify the post's author about a new comment.
     await createNotification(req, {
       recipient: post.author,
       actor: req.userId,
       type: 'comment',
       post: post._id,
     });
+    // If it's a reply, also notify the parent comment's author.
+    if (parentId) {
+      const parent = await Comment.findById(parentId).select('author');
+      if (parent) {
+        await createNotification(req, {
+          recipient: parent.author,
+          actor: req.userId,
+          type: 'comment',
+          post: post._id,
+        });
+      }
+    }
 
     const populated = await comment.populate('author', 'name username avatarUrl');
-    res.status(201).json(populated);
+    res.status(201).json(shapeComment(populated, req.userId));
+  } catch (error) {
+    res.status(500).json({ message: 'Something went wrong', error: error.message });
+  }
+};
+
+// POST/DELETE /api/posts/comments/:commentId/like — like / unlike a comment.
+const likeComment = async (req, res) => {
+  try {
+    const comment = await Comment.findById(req.params.commentId);
+    if (!comment) return res.status(404).json({ message: 'Comment not found' });
+
+    const liked = comment.likes.some(id => String(id) === String(req.userId));
+    if (req.method === 'POST' && !liked) comment.likes.push(req.userId);
+    if (req.method === 'DELETE') {
+      comment.likes = comment.likes.filter(id => String(id) !== String(req.userId));
+    }
+    await comment.save();
+    res.json({ likesCount: comment.likes.length, likedByMe: req.method === 'POST' });
+  } catch (error) {
+    res.status(500).json({ message: 'Something went wrong', error: error.message });
+  }
+};
+
+// POST /api/posts/comments/:commentId/pin — pin/unpin a comment (post owner only).
+// Body: { pin: boolean }
+const pinComment = async (req, res) => {
+  try {
+    const { pin = true } = req.body;
+    const comment = await Comment.findById(req.params.commentId).populate('post', 'author');
+    if (!comment) return res.status(404).json({ message: 'Comment not found' });
+
+    // Only the post's owner can pin comments on it.
+    if (String(comment.post.author) !== String(req.userId)) {
+      return res.status(403).json({ message: 'Only the post owner can pin comments.' });
+    }
+    // Only top-level comments can be pinned.
+    if (comment.parent) {
+      return res.status(400).json({ message: 'You can only pin top-level comments.' });
+    }
+
+    // One pinned comment at a time per post: unpin others when pinning.
+    if (pin) {
+      await Comment.updateMany(
+        { post: comment.post._id, isPinned: true },
+        { isPinned: false }
+      );
+    }
+    comment.isPinned = !!pin;
+    await comment.save();
+    res.json({ isPinned: comment.isPinned });
   } catch (error) {
     res.status(500).json({ message: 'Something went wrong', error: error.message });
   }
@@ -202,4 +282,6 @@ module.exports = {
   unlikePost,
   getComments,
   addComment,
+  likeComment,
+  pinComment,
 };

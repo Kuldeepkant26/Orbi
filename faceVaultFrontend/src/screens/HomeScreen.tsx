@@ -17,6 +17,7 @@ import { apiFetchFeed, apiLikePost, Post } from '../api/postsApi';
 import PostCard from '../components/PostCard';
 import OrbiHeader from '../components/OrbiHeader';
 import StoryTray from '../components/StoryTray';
+import CommentsSheet from '../components/CommentsSheet';
 import { FeedSkeleton } from '../components/skeletons';
 import { colors } from '../theme/colors';
 import { spacing } from '../theme/spacing';
@@ -40,6 +41,8 @@ export default function HomeScreen() {
   const [error, setError] = useState('');
   // Bumped on pull-to-refresh so the story tray reloads too.
   const [storyKey, setStoryKey] = useState(0);
+  // The post whose comments sheet is open (null = closed).
+  const [commentsFor, setCommentsFor] = useState<{ postId: string; authorId: string } | null>(null);
 
   // Load the first page (or reload on pull-to-refresh).
   const loadFeed = useCallback(async () => {
@@ -113,7 +116,9 @@ export default function HomeScreen() {
           <PostCard
             post={item}
             onToggleLike={handleToggleLike}
-            onOpenComments={p => navigation.navigate('Comments', { postId: p._id })}
+            onOpenComments={p =>
+              setCommentsFor({ postId: p._id, authorId: p.author._id })
+            }
             onOpenProfile={userId => navigation.navigate('UserProfile', { userId })}
             onMessage={p =>
               navigation.navigate('Chat', {
@@ -162,6 +167,19 @@ export default function HomeScreen() {
               </>
             )}
           </View>
+        }
+      />
+
+      {/* Comments bottom sheet */}
+      <CommentsSheet
+        visible={!!commentsFor}
+        postId={commentsFor?.postId || null}
+        postAuthorId={commentsFor?.authorId}
+        onClose={() => setCommentsFor(null)}
+        onCountChange={(pid, total) =>
+          setPosts(prev =>
+            prev.map(p => (p._id === pid ? { ...p, commentsCount: total } : p)),
+          )
         }
       />
     </SafeAreaView>
