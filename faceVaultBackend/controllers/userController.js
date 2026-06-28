@@ -7,8 +7,33 @@ const getAllUsers = async (req, res) => {
     const users = await User.find({
       _id: { $ne: req.userId },
       isBanned: { $ne: true }, // hide banned users from search
+      isDeleted: { $ne: true }, // hide deleted accounts
     }).select('firstName lastName name username email avatarUrl bio');
     res.json(users);
+  } catch (error) {
+    res.status(500).json({ message: 'Something went wrong', error: error.message });
+  }
+};
+
+// GET /api/users/messages/unread-count — total unread messages sent TO me,
+// plus a per-sender breakdown so the messages list can show per-chat badges.
+const getUnreadMessageCount = async (req, res) => {
+  try {
+    const myId = req.userId;
+    const unread = await Message.find({
+      receiver: myId,
+      isRead: false,
+      isDeleted: { $ne: true },
+    }).select('sender');
+
+    // Count per sender.
+    const bySender = {};
+    for (const m of unread) {
+      const s = String(m.sender);
+      bySender[s] = (bySender[s] || 0) + 1;
+    }
+
+    res.json({ count: unread.length, bySender });
   } catch (error) {
     res.status(500).json({ message: 'Something went wrong', error: error.message });
   }
@@ -21,6 +46,8 @@ const getProfile = async (req, res) => {
   try {
     const user = await User.findById(req.params.userId).select('-password');
     if (!user) return res.status(404).json({ message: 'User not found' });
+    // A deleted account is invisible to everyone (admins use the admin endpoint).
+    if (user.isDeleted) return res.status(404).json({ message: 'User not found' });
 
     const isFollowedByMe = user.followers.some(
       (id) => String(id) === String(req.userId)
@@ -167,6 +194,7 @@ module.exports = {
   getAllUsers,
   getProfile,
   updateMyProfile,
+  getUnreadMessageCount,
   getMessages,
   sendMessage,
   editMessage,

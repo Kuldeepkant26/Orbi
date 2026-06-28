@@ -108,6 +108,12 @@ const userSchema = new mongoose.Schema({
         type: Date,
         default: null, // null = permanent (while isBanned is true)
     },
+    // Soft delete: a deleted account can't log in and is hidden everywhere, but
+    // the record stays in the DB (for recovery / audit). Set by a superadmin.
+    isDeleted: {
+        type: Boolean,
+        default: false,
+    },
 }, { timestamps: true });
 
 // Keep the derived `name` ("First Last") in sync whenever first/last change.

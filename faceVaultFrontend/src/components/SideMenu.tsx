@@ -90,11 +90,27 @@ export default function SideMenu({ visible, onClose }: Props) {
               label="Manage Posts"
               onPress={() => go(() => navigation.navigate('ManagePosts'))}
             />
+            <MenuItem
+              icon="document-text-outline"
+              label="View Reports"
+              onPress={() => go(() => navigation.navigate('AdminReports'))}
+            />
             <View style={styles.divider} />
           </>
         )}
 
         {/* Everyone */}
+        <MenuItem
+          icon="help-buoy-outline"
+          label="Report an Issue"
+          onPress={() => go(() => navigation.navigate('ReportIssue'))}
+        />
+        <MenuItem
+          icon="chatbox-ellipses-outline"
+          label="My Reports"
+          onPress={() => go(() => navigation.navigate('MyReports'))}
+        />
+        <View style={styles.divider} />
         <MenuItem icon="log-out-outline" label="Log out" onPress={confirmLogout} danger />
       </View>
     </Modal>

@@ -19,7 +19,9 @@ import {
   AppNotification,
 } from '../api/socialApi';
 import Avatar from '../components/Avatar';
+import OrbiHeader from '../components/OrbiHeader';
 import { ListSkeleton } from '../components/skeletons';
+import { useBadges } from '../context/BadgeContext';
 import { colors } from '../theme/colors';
 import { spacing } from '../theme/spacing';
 import { timeAgo } from '../utils/timeAgo';
@@ -48,6 +50,7 @@ export default function NotificationsScreen() {
   const navigation = useNavigation<Nav>();
   const { token } = useAuth();
   const { socket } = useSocket();
+  const { clearNotifCount } = useBadges();
 
   const [items, setItems] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(true);
@@ -57,15 +60,16 @@ export default function NotificationsScreen() {
     try {
       const data = await apiFetchNotifications(token!);
       setItems(data);
-      // Mark them all read once we've shown them.
+      // Mark them all read once we've shown them, and clear the tab badge.
       apiMarkNotificationsRead(token!).catch(() => {});
+      clearNotifCount();
     } catch {
       // ignore
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [token]);
+  }, [token, clearNotifCount]);
 
   // Reload when the tab regains focus.
   useEffect(() => {
@@ -97,9 +101,7 @@ export default function NotificationsScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <View style={styles.topBar}>
-        <Text style={styles.title}>Notifications</Text>
-      </View>
+      <OrbiHeader title="Notifications" />
 
       {loading ? (
         <ListSkeleton rows={7} />

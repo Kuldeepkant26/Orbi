@@ -10,6 +10,8 @@ export type UserItem = {
   createdAt?: string;
 };
 
+export type Reaction = { user: string; emoji: string };
+
 export type Message = {
   _id: string;
   sender: string;
@@ -18,8 +20,8 @@ export type Message = {
   isRead: boolean;
   isEdited: boolean;
   isDeleted: boolean;
+  reactions?: Reaction[];
   createdAt: string;
-  
 };
 
 // Fetch list of all users (except yourself)
@@ -29,6 +31,18 @@ export async function apiFetchUsers(token: string): Promise<UserItem[]> {
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.message || 'Failed to fetch users');
+  return data;
+}
+
+// Fetch the total unread message count + a per-sender breakdown (for badges).
+export async function apiFetchUnreadMessageCount(
+  token: string,
+): Promise<{ count: number; bySender: Record<string, number> }> {
+  const res = await fetch(`${BASE_URL}/messages/unread-count`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to load unread count');
   return data;
 }
 

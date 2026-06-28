@@ -1,10 +1,8 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import {
-  View,
   Text,
   TouchableOpacity,
   StyleSheet,
-  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -14,7 +12,7 @@ import { useAuth } from '../context/AuthContext';
 import { apiFetchProfile, Profile } from '../api/socialApi';
 import { apiFetchUserPosts, Post } from '../api/postsApi';
 import ProfileView from '../components/ProfileView';
-import Icon from '../components/Icon';
+import OrbiHeader from '../components/OrbiHeader';
 import { ProfileSkeleton } from '../components/skeletons';
 import { colors } from '../theme/colors';
 import { spacing, radius } from '../theme/spacing';
@@ -26,7 +24,7 @@ type Nav = NativeStackNavigationProp<AppStackParamList>;
 
 export default function ProfileScreen() {
   const navigation = useNavigation<Nav>();
-  const { user, token, logout } = useAuth();
+  const { user, token } = useAuth();
 
   const [profile, setProfile] = useState<Profile | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
@@ -55,24 +53,9 @@ export default function ProfileScreen() {
     return unsubscribe;
   }, [navigation, load]);
 
-  const confirmLogout = () => {
-    Alert.alert('Log out', 'Are you sure you want to log out?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Log out', style: 'destructive', onPress: logout },
-    ]);
-  };
-
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      {/* Top bar: my username + logout */}
-      <View style={styles.topBar}>
-        <Text style={styles.handle}>
-          {profile?.username || user?.username || user?.name}
-        </Text>
-        <TouchableOpacity onPress={confirmLogout} style={styles.iconBtn}>
-          <Icon name="log-out-outline" size={22} color={colors.ink} />
-        </TouchableOpacity>
-      </View>
+      <OrbiHeader />
 
       {loading || !profile ? (
         <ProfileSkeleton />

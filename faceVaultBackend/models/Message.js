@@ -35,6 +35,14 @@ const messageSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    // Emoji reactions. Each entry is one user's single reaction to this message
+    // (a user reacting again replaces their previous emoji).
+    reactions: [
+      {
+        user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        emoji: { type: String },
+      },
+    ],
   },
   { timestamps: true }
 );

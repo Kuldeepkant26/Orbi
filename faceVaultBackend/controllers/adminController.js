@@ -8,9 +8,72 @@ const Post = require('../models/Post');
 const listUsers = async (req, res) => {
   try {
     const users = await User.find({})
-      .select('firstName lastName name username email avatarUrl role isBanned banReason banExpires createdAt')
+      .select('firstName lastName name username email avatarUrl role isBanned banReason banExpires isDeleted createdAt')
       .sort({ createdAt: -1 });
     res.json(users);
+  } catch (error) {
+    res.status(500).json({ message: 'Something went wrong', error: error.message });
+  }
+};
+
+// GET /api/admin/users/:userId — detailed view of one user (for the manage
+// screen), including post/follower/following counts.
+const getUserDetail = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.userId).select('-password -otpHash');
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    res.json({
+      _id: user._id,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      name: user.name,
+      username: user.username,
+      email: user.email,
+      avatarUrl: user.avatarUrl,
+      bio: user.bio,
+      role: user.role,
+      isBanned: user.isBanned,
+      banReason: user.banReason,
+      banExpires: user.banExpires,
+      isDeleted: user.isDeleted,
+      postsCount: user.postsCount,
+      followersCount: user.followers.length,
+      followingCount: user.following.length,
+      createdAt: user.createdAt,
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Something went wrong', error: error.message });
+  }
+};
+
+// POST /api/admin/users/:userId/delete — soft-delete an account (isDeleted=true).
+// The user can no longer log in and is hidden everywhere, but the record stays.
+const softDeleteUser = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.userId);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    if (user.role === 'superadmin') {
+      return res.status(400).json({ message: 'You cannot delete an admin.' });
+    }
+
+    user.isDeleted = true;
+    await user.save();
+    res.json({ message: 'Account deleted', isDeleted: true });
+  } catch (error) {
+    res.status(500).json({ message: 'Something went wrong', error: error.message });
+  }
+};
+
+// POST /api/admin/users/:userId/restore — undo a soft delete.
+const restoreUser = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.userId);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    user.isDeleted = false;
+    await user.save();
+    res.json({ message: 'Account restored', isDeleted: false });
   } catch (error) {
     res.status(500).json({ message: 'Something went wrong', error: error.message });
   }
@@ -119,6 +182,9 @@ const deletePost = async (req, res) => {
 
 module.exports = {
   listUsers,
+  getUserDetail,
+  softDeleteUser,
+  restoreUser,
   banUser,
   unbanUser,
   listPosts,

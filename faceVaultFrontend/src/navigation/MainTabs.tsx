@@ -6,6 +6,8 @@ import {
 } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from '../components/Icon';
+import Badge from '../components/Badge';
+import { useBadges } from '../context/BadgeContext';
 import { colors } from '../theme/colors';
 import HomeScreen from '../screens/HomeScreen';
 import SearchScreen from '../screens/SearchScreen';
@@ -44,6 +46,7 @@ const ICONS: Record<
 
 function CustomTabBar({ state, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
+  const { notifCount } = useBadges();
 
   return (
     <View style={[styles.bar, { paddingBottom: Math.max(insets.bottom, 8) }]}>
@@ -74,11 +77,15 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
             style={styles.tab}
             activeOpacity={0.7}
             onPress={onPress}>
-            <Icon
-              name={focused ? icon.active : icon.inactive}
-              size={size}
-              color={color}
-            />
+            <View>
+              <Icon
+                name={focused ? icon.active : icon.inactive}
+                size={size}
+                color={color}
+              />
+              {/* Unread follow/like/comment badge on the Notifications tab. */}
+              {routeName === 'Notifications' && <Badge count={notifCount} />}
+            </View>
           </TouchableOpacity>
         );
       })}

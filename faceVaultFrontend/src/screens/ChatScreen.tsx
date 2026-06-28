@@ -9,15 +9,29 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  Modal,
+  Pressable,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { AppStackParamList } from '../../App';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
+import { useBadges } from '../context/BadgeContext';
 import { apiFetchMessages, Message } from '../api/usersApi';
 import { apiFetchProfile, Profile } from '../api/socialApi';
 import Avatar from '../components/Avatar';
+import Icon from '../components/Icon';
 import { ChatSkeleton } from '../components/skeletons';
+import {
+  CHAT_THEMES,
+  ChatTheme,
+  DEFAULT_CHAT_THEME,
+  loadChatTheme,
+  saveChatTheme,
+  REACTION_EMOJIS,
+} from '../theme/chatBackgrounds';
+import { colors } from '../theme/colors';
+import { spacing } from '../theme/spacing';
 
 type Props = NativeStackScreenProps<AppStackParamList, 'Chat'>;
 
@@ -25,6 +39,7 @@ export default function ChatScreen({ route, navigation }: Props) {
   const { otherUser } = route.params;
   const { user, token } = useAuth();
   const { socket } = useSocket();
+  const { clearMessagesFrom } = useBadges();
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
@@ -32,13 +47,16 @@ export default function ChatScreen({ route, navigation }: Props) {
   const [isOtherTyping, setIsOtherTyping] = useState(false);
   const [editingMessage, setEditingMessage] = useState<Message | null>(null);
   const [otherProfile, setOtherProfile] = useState<Profile | null>(null);
-  // Which of my messages is currently showing its inline Edit/Delete actions.
-  const [activeActionsId, setActiveActionsId] = useState<string | null>(null);
+  // The message whose reaction/edit/delete sheet is open (long-pressed).
+  const [activeMessage, setActiveMessage] = useState<Message | null>(null);
+  // Chosen chat background (per conversation, saved on device).
+  const [chatTheme, setChatTheme] = useState<ChatTheme>(DEFAULT_CHAT_THEME);
+  const [bgPickerOpen, setBgPickerOpen] = useState(false);
 
   const flatListRef = useRef<FlatList>(null);
   const typingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // ── Load existing messages on mount ──────────────────────────────────────
+  // ── Load messages + saved background on mount ─────────────────────────────
   useEffect(() => {
     (async () => {
       try {
@@ -48,10 +66,12 @@ export default function ChatScreen({ route, navigation }: Props) {
         setLoading(false);
       }
     })();
-  }, [token, otherUser._id]);
+    loadChatTheme(otherUser._id).then(setChatTheme);
+    // Opening the chat clears this person's unread message badge.
+    clearMessagesFrom(otherUser._id);
+  }, [token, otherUser._id, clearMessagesFrom]);
 
-  // Fetch the other user's profile so we can show their avatar + @username in
-  // the chat header (instead of just their name).
+  // Fetch the other user's profile for the header (avatar + @username).
   useEffect(() => {
     (async () => {
       try {
@@ -63,12 +83,13 @@ export default function ChatScreen({ route, navigation }: Props) {
     })();
   }, [token, otherUser._id]);
 
-  // Custom header: tappable avatar + @username, opening the user's profile.
-  //
-  // NOTE: Video calling is intentionally DISABLED for now — the call button is
-  // greyed out. The call wiring (CallContext) is left intact for later.
+  // Header: avatar + @username (tap → profile) and a background-picker button.
+  // (Video calling stays disabled.)
   useEffect(() => {
     navigation.setOptions({
+      headerStyle: { backgroundColor: chatTheme.bg },
+      headerTintColor: isDark(chatTheme.bg) ? '#FFFFFF' : colors.ink,
+      headerShadowVisible: false,
       headerTitle: () => (
         <TouchableOpacity
           style={styles.headerUser}
@@ -81,69 +102,57 @@ export default function ChatScreen({ route, navigation }: Props) {
             name={otherProfile?.name || otherUser.name}
             size={32}
           />
-          <Text style={styles.headerName} numberOfLines={1}>
-            {otherProfile?.username
-              ? `@${otherProfile.username}`
-              : otherUser.name}
+          <Text
+            style={[
+              styles.headerName,
+              { color: isDark(chatTheme.bg) ? '#FFFFFF' : colors.ink },
+            ]}
+            numberOfLines={1}>
+            {otherProfile?.username ? `@${otherProfile.username}` : otherUser.name}
           </Text>
         </TouchableOpacity>
       ),
       headerRight: () => (
         <TouchableOpacity
-          style={styles.callHeaderBtn}
-          disabled
-          onPress={() =>
-            Alert.alert('Calls are off', 'Video calling is disabled for now.')
-          }>
-          <Text style={[styles.callHeaderIcon, styles.callHeaderIconDisabled]}>
-            📹
-          </Text>
+          style={styles.bgBtn}
+          onPress={() => setBgPickerOpen(true)}>
+          <Icon
+            name="color-palette-outline"
+            size={22}
+            color={isDark(chatTheme.bg) ? '#FFFFFF' : colors.ink}
+          />
         </TouchableOpacity>
       ),
     });
-  }, [navigation, otherUser, otherProfile]);
+  }, [navigation, otherUser, otherProfile, chatTheme]);
 
-  // ── Mark messages as read when screen opens ───────────────────────────────
+  // Mark as read when the screen opens.
   useEffect(() => {
-    if (socket) {
-      socket.emit('mark_read', { senderId: otherUser._id });
-    }
+    if (socket) socket.emit('mark_read', { senderId: otherUser._id });
   }, [socket, otherUser._id]);
 
-  // ── Socket event listeners ────────────────────────────────────────────────
+  // ── Socket listeners ──────────────────────────────────────────────────────
   useEffect(() => {
     if (!socket) return;
 
-    // A new message arrived for me
     socket.on('receive_message', (msg: Message) => {
-      // Only add if it's from the user we're chatting with
       if (msg.sender === otherUser._id) {
         setMessages(prev => [...prev, msg]);
-        // Mark it read immediately since screen is open
         socket.emit('mark_read', { senderId: otherUser._id });
       }
     });
-
-    // My own message was saved — replace optimistic version or add
     socket.on('message_sent', (msg: Message) => {
       setMessages(prev => [...prev, msg]);
     });
-
-    // A message was edited (by either side)
-    socket.on('message_edited', (updatedMsg: Message) => {
-      setMessages(prev =>
-        prev.map(m => (m._id === updatedMsg._id ? updatedMsg : m))
-      );
+    socket.on('message_edited', (m: Message) => {
+      setMessages(prev => prev.map(x => (x._id === m._id ? m : x)));
     });
-
-    // A message was deleted
-    socket.on('message_deleted', (deletedMsg: Message) => {
-      setMessages(prev =>
-        prev.map(m => (m._id === deletedMsg._id ? deletedMsg : m))
-      );
+    socket.on('message_deleted', (m: Message) => {
+      setMessages(prev => prev.map(x => (x._id === m._id ? m : x)));
     });
-
-    // Typing events
+    socket.on('message_reacted', (m: Message) => {
+      setMessages(prev => prev.map(x => (x._id === m._id ? m : x)));
+    });
     socket.on('user_typing', ({ userId }: { userId: string }) => {
       if (userId === otherUser._id) setIsOtherTyping(true);
     });
@@ -156,39 +165,35 @@ export default function ChatScreen({ route, navigation }: Props) {
       socket.off('message_sent');
       socket.off('message_edited');
       socket.off('message_deleted');
+      socket.off('message_reacted');
       socket.off('user_typing');
       socket.off('user_stopped_typing');
     };
   }, [socket, otherUser._id]);
 
-  // ── Scroll to bottom when messages change ─────────────────────────────────
+  // Scroll to bottom on new messages.
   useEffect(() => {
     if (messages.length > 0) {
       setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
     }
   }, [messages.length, isOtherTyping]);
 
-  // ── Handle typing indicator ───────────────────────────────────────────────
+  // ── Typing ────────────────────────────────────────────────────────────────
   const handleTyping = (text: string) => {
     setInputText(text);
     if (!socket) return;
-
     socket.emit('typing_start', { receiverId: otherUser._id });
-
-    // Stop typing event after 1.5s of no keypresses
     if (typingTimeout.current) clearTimeout(typingTimeout.current);
     typingTimeout.current = setTimeout(() => {
       socket.emit('typing_stop', { receiverId: otherUser._id });
     }, 1500);
   };
 
-  // ── Send or Edit message ──────────────────────────────────────────────────
+  // ── Send / edit ───────────────────────────────────────────────────────────
   const handleSend = () => {
     const trimmed = inputText.trim();
     if (!trimmed || !socket) return;
-
     if (editingMessage) {
-      // Editing an existing message
       socket.emit('edit_message', {
         messageId: editingMessage._id,
         text: trimmed,
@@ -196,118 +201,131 @@ export default function ChatScreen({ route, navigation }: Props) {
       });
       setEditingMessage(null);
     } else {
-      // New message
-      socket.emit('send_message', {
-        receiverId: otherUser._id,
-        text: trimmed,
-      });
+      socket.emit('send_message', { receiverId: otherUser._id, text: trimmed });
     }
-
     setInputText('');
     socket.emit('typing_stop', { receiverId: otherUser._id });
     if (typingTimeout.current) clearTimeout(typingTimeout.current);
   };
 
-  // Start editing a message (fills the input with its text).
+  // ── Reactions / edit / delete (from the long-press sheet) ─────────────────
+  const react = (emoji: string) => {
+    if (!activeMessage || !socket) return;
+    // Toggle off if I already reacted with the same emoji.
+    const mine = (activeMessage.reactions || []).find(
+      r => r.user === user?.id,
+    );
+    const next = mine?.emoji === emoji ? '' : emoji;
+    socket.emit('react_message', {
+      messageId: activeMessage._id,
+      emoji: next,
+      otherUserId: otherUser._id,
+    });
+    setActiveMessage(null);
+  };
+
   const startEdit = (msg: Message) => {
     setEditingMessage(msg);
     setInputText(msg.text);
-    setActiveActionsId(null);
+    setActiveMessage(null);
   };
 
-  // Delete a message (with a confirm).
   const confirmDelete = (msg: Message) => {
-    setActiveActionsId(null);
+    setActiveMessage(null);
     Alert.alert('Delete message', 'This message will be removed.', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete',
         style: 'destructive',
-        onPress: () => {
+        onPress: () =>
           socket?.emit('delete_message', {
             messageId: msg._id,
             receiverId: otherUser._id,
-          });
-        },
+          }),
       },
     ]);
   };
 
-  // Tapping one of MY messages toggles its inline Edit/Delete actions.
-  // (Long-press still works as a shortcut to the same actions.)
-  const toggleActions = (msg: Message) => {
-    if (msg.sender !== user?.id || msg.isDeleted) return;
-    setActiveActionsId(prev => (prev === msg._id ? null : msg._id));
+  const pickBackground = (t: ChatTheme) => {
+    setChatTheme(t);
+    saveChatTheme(otherUser._id, t.id);
+    setBgPickerOpen(false);
   };
 
-  // ── Format time e.g. "2:45 PM" ───────────────────────────────────────────
-  const formatTime = (dateStr: string) => {
-    const d = new Date(dateStr);
-    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  };
+  const formatTime = (d: string) =>
+    new Date(d).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-  // ── Render each message bubble ────────────────────────────────────────────
+  // ── Render a message bubble ───────────────────────────────────────────────
   const renderMessage = useCallback(
     ({ item }: { item: Message }) => {
       const isMine = item.sender === user?.id;
-      const showActions = isMine && !item.isDeleted && activeActionsId === item._id;
+      const reactions = item.reactions || [];
 
       return (
-        <View style={[styles.bubbleRow, isMine ? styles.myRow : styles.theirRow]}>
-          <View style={styles.bubbleWrap}>
-            <TouchableOpacity
-              activeOpacity={0.8}
-              onPress={() => toggleActions(item)}
-              onLongPress={() => toggleActions(item)}
-              style={[styles.bubble, isMine ? styles.myBubble : styles.theirBubble]}>
-              {item.isDeleted ? (
-                <Text style={styles.deletedText}>This message was deleted</Text>
-              ) : (
-                <Text style={[styles.bubbleText, isMine ? styles.myText : styles.theirText]}>
-                  {item.text}
+        <View style={[styles.row, isMine ? styles.rowMine : styles.rowTheirs]}>
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onLongPress={() => !item.isDeleted && setActiveMessage(item)}
+            style={[
+              styles.bubble,
+              isMine
+                ? { backgroundColor: chatTheme.myBubble, borderBottomRightRadius: 4 }
+                : {
+                    backgroundColor: chatTheme.theirBubble,
+                    borderBottomLeftRadius: 4,
+                    borderWidth: StyleSheet.hairlineWidth,
+                    borderColor: chatTheme.border,
+                  },
+            ]}>
+            {item.isDeleted ? (
+              <Text style={[styles.deleted, { color: chatTheme.meta }]}>
+                This message was deleted
+              </Text>
+            ) : (
+              <Text
+                style={{ color: isMine ? chatTheme.myText : chatTheme.theirText, fontSize: 15, lineHeight: 21 }}>
+                {item.text}
+              </Text>
+            )}
+
+            <View style={styles.meta}>
+              {item.isEdited && !item.isDeleted && (
+                <Text style={[styles.metaText, { color: isMine ? fade(chatTheme.myText) : chatTheme.meta }]}>
+                  edited ·{' '}
                 </Text>
               )}
-              {/* Time + status row */}
-              <View style={styles.metaRow}>
-                {item.isEdited && !item.isDeleted && (
-                  <Text style={[styles.editedLabel, isMine ? styles.myMeta : styles.theirMeta]}>
-                    edited ·{' '}
-                  </Text>
-                )}
-                <Text style={[styles.timeText, isMine ? styles.myMeta : styles.theirMeta]}>
-                  {formatTime(item.createdAt)}
+              <Text style={[styles.metaText, { color: isMine ? fade(chatTheme.myText) : chatTheme.meta }]}>
+                {formatTime(item.createdAt)}
+              </Text>
+              {isMine && !item.isDeleted && (
+                <Text style={[styles.metaText, { color: fade(chatTheme.myText) }]}>
+                  {item.isRead ? '  ✓✓' : '  ✓'}
                 </Text>
-                {/* Read receipt — double tick for my messages */}
-                {isMine && !item.isDeleted && (
-                  <Text style={[styles.tickText, item.isRead ? styles.tickRead : styles.tickUnread]}>
-                    {item.isRead ? ' ✓✓' : ' ✓'}
-                  </Text>
-                )}
-              </View>
-            </TouchableOpacity>
+              )}
+            </View>
+          </TouchableOpacity>
 
-            {/* Visible Edit / Delete actions for my own messages (tap to reveal) */}
-            {showActions && (
-              <View style={styles.actionsRow}>
-                <TouchableOpacity onPress={() => startEdit(item)} style={styles.actionPill}>
-                  <Text style={styles.actionText}>Edit</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => confirmDelete(item)} style={styles.actionPill}>
-                  <Text style={[styles.actionText, styles.actionDelete]}>Delete</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          </View>
+          {/* Reactions pill under the bubble */}
+          {reactions.length > 0 && (
+            <View
+              style={[
+                styles.reactionPill,
+                isMine ? styles.reactionMine : styles.reactionTheirs,
+              ]}>
+              <Text style={styles.reactionText}>
+                {reactions.map(r => r.emoji).join(' ')}
+              </Text>
+            </View>
+          )}
         </View>
       );
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [user?.id, activeActionsId]
+    [user?.id, chatTheme],
   );
 
   if (loading) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: chatTheme.bg }]}>
         <ChatSkeleton />
       </View>
     );
@@ -315,38 +333,36 @@ export default function ChatScreen({ route, navigation }: Props) {
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={[styles.container, { backgroundColor: chatTheme.bg }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={90}>
 
-      {/* Messages list */}
       <FlatList
         ref={flatListRef}
         data={messages}
         keyExtractor={item => item._id}
-        contentContainerStyle={styles.messageList}
+        contentContainerStyle={styles.list}
         renderItem={renderMessage}
         onLayout={() => flatListRef.current?.scrollToEnd({ animated: false })}
         ListEmptyComponent={
-          <View style={styles.emptyChat}>
-            <Text style={styles.emptyChatText}>
-              Say hello to {otherUser.name}! 👋
+          <View style={styles.empty}>
+            <Text style={[styles.emptyText, { color: chatTheme.meta }]}>
+              Say hello to {otherUser.name} 👋
             </Text>
           </View>
         }
       />
 
-      {/* Typing indicator */}
+      {/* Typing */}
       {isOtherTyping && (
         <View style={styles.typingRow}>
-          <View style={styles.typingBubble}>
-            <Text style={styles.typingDots}>• • •</Text>
-          </View>
-          <Text style={styles.typingLabel}>{otherUser.name} is typing</Text>
+          <Text style={[styles.typingText, { color: chatTheme.meta }]}>
+            {otherUser.name} is typing…
+          </Text>
         </View>
       )}
 
-      {/* Edit mode banner */}
+      {/* Edit banner */}
       {editingMessage && (
         <View style={styles.editBanner}>
           <Text style={styles.editBannerText}>Editing message</Text>
@@ -355,7 +371,7 @@ export default function ChatScreen({ route, navigation }: Props) {
               setEditingMessage(null);
               setInputText('');
             }}>
-            <Text style={styles.editCancel}>✕</Text>
+            <Icon name="close" size={18} color={colors.ink} />
           </TouchableOpacity>
         </View>
       )}
@@ -364,267 +380,237 @@ export default function ChatScreen({ route, navigation }: Props) {
       <View style={styles.inputBar}>
         <TextInput
           style={styles.input}
-          placeholder="Type a message…"
-          placeholderTextColor="#94A3B8"
+          placeholder="Message…"
+          placeholderTextColor={colors.textFaint}
           value={inputText}
           onChangeText={handleTyping}
           multiline
           maxLength={1000}
-          returnKeyType="default"
         />
         <TouchableOpacity
-          style={[styles.sendBtn, !inputText.trim() && styles.sendBtnDisabled]}
+          style={[styles.sendBtn, !inputText.trim() && styles.sendBtnOff]}
           onPress={handleSend}
           disabled={!inputText.trim()}>
-          <Text style={styles.sendIcon}>{editingMessage ? '✓' : '↑'}</Text>
+          <Icon
+            name={editingMessage ? 'checkmark' : 'arrow-up'}
+            size={20}
+            color={colors.white}
+          />
         </TouchableOpacity>
       </View>
+
+      {/* Long-press action sheet: react / edit / delete */}
+      <Modal
+        visible={!!activeMessage}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setActiveMessage(null)}>
+        <Pressable style={styles.sheetBackdrop} onPress={() => setActiveMessage(null)}>
+          <Pressable style={styles.sheet}>
+            {/* Emoji reactions */}
+            <View style={styles.emojiRow}>
+              {REACTION_EMOJIS.map(e => (
+                <TouchableOpacity key={e} onPress={() => react(e)} style={styles.emojiBtn}>
+                  <Text style={styles.emoji}>{e}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Edit / Delete only for my own messages */}
+            {activeMessage?.sender === user?.id && (
+              <>
+                <View style={styles.sheetDivider} />
+                <TouchableOpacity
+                  style={styles.sheetItem}
+                  onPress={() => activeMessage && startEdit(activeMessage)}>
+                  <Icon name="create-outline" size={20} color={colors.ink} />
+                  <Text style={styles.sheetItemText}>Edit</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.sheetItem}
+                  onPress={() => activeMessage && confirmDelete(activeMessage)}>
+                  <Icon name="trash-outline" size={20} color={colors.danger} />
+                  <Text style={[styles.sheetItemText, { color: colors.danger }]}>
+                    Delete
+                  </Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Background picker */}
+      <Modal
+        visible={bgPickerOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setBgPickerOpen(false)}>
+        <Pressable style={styles.sheetBackdrop} onPress={() => setBgPickerOpen(false)}>
+          <Pressable style={styles.bgSheet}>
+            <Text style={styles.bgTitle}>Chat background</Text>
+            <View style={styles.bgRow}>
+              {CHAT_THEMES.map(t => (
+                <TouchableOpacity
+                  key={t.id}
+                  style={styles.bgItem}
+                  onPress={() => pickBackground(t)}>
+                  <View
+                    style={[
+                      styles.bgSwatch,
+                      { backgroundColor: t.bg },
+                      chatTheme.id === t.id && styles.bgSwatchActive,
+                    ]}>
+                    <View style={[styles.bgDot, { backgroundColor: t.myBubble }]} />
+                  </View>
+                  <Text style={styles.bgName}>{t.name}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
 
+// Quick luminance check so header text/icons stay readable on dark backgrounds.
+function isDark(hex: string): boolean {
+  const c = hex.replace('#', '');
+  const r = parseInt(c.substring(0, 2), 16);
+  const g = parseInt(c.substring(2, 4), 16);
+  const b = parseInt(c.substring(4, 6), 16);
+  return (r * 299 + g * 587 + b * 114) / 1000 < 140;
+}
+
+// Slightly fade a text color for meta text on my bubble.
+function fade(hex: string): string {
+  return hex === '#FFFFFF' ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.45)';
+}
+
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F1F5F9',
-  },
-  center: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  messageList: {
-    padding: 12,
-    paddingBottom: 8,
-  },
-  // ── Header (avatar + @username) ────────────────────────────────────────────
-  headerUser: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    maxWidth: 220,
-  },
-  headerName: {
-    marginLeft: 8,
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  // ── Bubble rows ────────────────────────────────────────────────────────────
-  bubbleRow: {
-    marginVertical: 3,
-    flexDirection: 'row',
-  },
-  bubbleWrap: {
-    maxWidth: '78%',
-  },
-  // ── Inline message actions (Edit / Delete) ─────────────────────────────────
-  actionsRow: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    marginTop: 4,
-  },
-  actionPill: {
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    marginLeft: 6,
-    backgroundColor: '#fff',
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  actionText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  actionDelete: {
-    color: '#E5484D',
-  },
-  myRow: {
-    justifyContent: 'flex-end',
-  },
-  theirRow: {
-    justifyContent: 'flex-start',
-  },
+  container: { flex: 1 },
+  headerUser: { flexDirection: 'row', alignItems: 'center', maxWidth: 220 },
+  headerName: { marginLeft: 8, fontSize: 16, fontWeight: '700' },
+  bgBtn: { padding: 6, marginRight: 4 },
+
+  list: { padding: spacing.md, paddingBottom: spacing.sm },
+  row: { marginVertical: 4, maxWidth: '80%' },
+  rowMine: { alignSelf: 'flex-end', alignItems: 'flex-end' },
+  rowTheirs: { alignSelf: 'flex-start', alignItems: 'flex-start' },
   bubble: {
     borderRadius: 18,
     paddingHorizontal: 14,
     paddingVertical: 9,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.07,
-    shadowRadius: 3,
+  },
+  deleted: { fontSize: 14, fontStyle: 'italic' },
+  meta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', marginTop: 3 },
+  metaText: { fontSize: 10 },
+  reactionPill: {
+    marginTop: -6,
+    backgroundColor: colors.background,
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
     elevation: 2,
   },
-  myBubble: {
-    backgroundColor: '#4F46E5',
-    borderBottomRightRadius: 4,
-  },
-  theirBubble: {
-    backgroundColor: '#fff',
-    borderBottomLeftRadius: 4,
-  },
-  bubbleText: {
-    fontSize: 15,
-    lineHeight: 21,
-  },
-  myText: {
-    color: '#fff',
-  },
-  theirText: {
-    color: '#0F172A',
-  },
-  deletedText: {
-    fontSize: 14,
-    fontStyle: 'italic',
-    color: '#94A3B8',
-  },
-  // ── Message meta (time + read receipt) ────────────────────────────────────
-  metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    marginTop: 3,
-  },
-  editedLabel: {
-    fontSize: 10,
-    fontStyle: 'italic',
-  },
-  timeText: {
-    fontSize: 10,
-  },
-  myMeta: {
-    color: 'rgba(255,255,255,0.65)',
-  },
-  theirMeta: {
-    color: '#94A3B8',
-  },
-  tickText: {
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  tickRead: {
-    color: '#A5F3D4', // light green on blue bubble
-  },
-  tickUnread: {
-    color: 'rgba(255,255,255,0.55)',
-  },
-  // ── Typing indicator ───────────────────────────────────────────────────────
-  typingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingBottom: 6,
-  },
-  typingBubble: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.07,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  typingDots: {
-    fontSize: 14,
-    color: '#64748B',
-    letterSpacing: 3,
-  },
-  typingLabel: {
-    marginLeft: 8,
-    fontSize: 12,
-    color: '#94A3B8',
-    fontStyle: 'italic',
-  },
-  // ── Edit banner ────────────────────────────────────────────────────────────
+  reactionMine: { marginRight: 6 },
+  reactionTheirs: { marginLeft: 6 },
+  reactionText: { fontSize: 13 },
+
+  typingRow: { paddingHorizontal: spacing.lg, paddingBottom: 4 },
+  typingText: { fontSize: 12, fontStyle: 'italic' },
+
   editBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#EEF2FF',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderTopWidth: 1,
-    borderTopColor: '#E0E7FF',
+    backgroundColor: colors.surfaceAlt,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
   },
-  editBannerText: {
-    fontSize: 13,
-    color: '#4F46E5',
-    fontWeight: '600',
-  },
-  editCancel: {
-    fontSize: 16,
-    color: '#4F46E5',
-    fontWeight: '700',
-    paddingHorizontal: 4,
-  },
-  // ── Input bar ──────────────────────────────────────────────────────────────
+  editBannerText: { fontSize: 13, fontWeight: '600', color: colors.ink },
+
   inputBar: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    backgroundColor: '#fff',
-    borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+    backgroundColor: colors.background,
   },
   input: {
     flex: 1,
-    backgroundColor: '#F1F5F9',
-    borderRadius: 22,
-    paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 10,
-    fontSize: 15,
-    color: '#0F172A',
     maxHeight: 120,
-    marginRight: 8,
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: 22,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    fontSize: 15,
+    color: colors.ink,
+    marginRight: spacing.sm,
   },
   sendBtn: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#4F46E5',
+    backgroundColor: colors.ink,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#4F46E5',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 8,
-    elevation: 5,
   },
-  sendBtnDisabled: {
-    backgroundColor: '#C7D2FE',
-    shadowOpacity: 0,
-    elevation: 0,
-  },
-  sendIcon: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  // ── Header call button ─────────────────────────────────────────────────────
-  callHeaderBtn: {
-    padding: 6,
-    marginRight: 4,
-  },
-  callHeaderIcon: {
-    fontSize: 22,
-  },
-  callHeaderIconDisabled: {
-    opacity: 0.3,
-  },
-  // ── Empty state ────────────────────────────────────────────────────────────
-  emptyChat: {
+  sendBtnOff: { backgroundColor: colors.textFaint },
+
+  empty: { alignItems: 'center', paddingTop: 100 },
+  emptyText: { fontSize: 15 },
+
+  // Action sheet
+  sheetBackdrop: {
     flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    justifyContent: 'flex-end',
+  },
+  sheet: {
+    backgroundColor: colors.background,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: spacing.lg,
+    paddingBottom: spacing.xxl,
+  },
+  emojiRow: { flexDirection: 'row', justifyContent: 'space-around' },
+  emojiBtn: { padding: spacing.sm },
+  emoji: { fontSize: 30 },
+  sheetDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.border,
+    marginVertical: spacing.md,
+  },
+  sheetItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.md },
+  sheetItemText: { marginLeft: spacing.md, fontSize: 16, fontWeight: '600', color: colors.ink },
+
+  // Background picker
+  bgSheet: {
+    backgroundColor: colors.background,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: spacing.lg,
+    paddingBottom: spacing.xxl,
+  },
+  bgTitle: { fontSize: 16, fontWeight: '700', color: colors.ink, marginBottom: spacing.lg },
+  bgRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  bgItem: { alignItems: 'center' },
+  bgSwatch: {
+    width: 54,
+    height: 54,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingTop: 80,
   },
-  emptyChatText: {
-    fontSize: 15,
-    color: '#94A3B8',
-  },
+  bgSwatchActive: { borderColor: colors.ink, borderWidth: 2 },
+  bgDot: { width: 20, height: 20, borderRadius: 10 },
+  bgName: { fontSize: 11, color: colors.textMuted, marginTop: 6 },
 });

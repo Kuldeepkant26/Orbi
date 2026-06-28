@@ -189,6 +189,13 @@ const login = async (req, res) => {
             return res.status(400).json({ message: 'Invalid email or password' });
         }
 
+        // ── Deleted account check ────────────────────────────────────────────
+        if (user.isDeleted) {
+            return res.status(403).json({
+                message: 'This account is no longer available.',
+            });
+        }
+
         // ── Ban check ────────────────────────────────────────────────────────
         // If the user is banned, block login. A ban with banExpires in the past
         // has elapsed, so we auto-lift it. A permanent ban has banExpires = null.

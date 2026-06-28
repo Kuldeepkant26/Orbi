@@ -62,6 +62,19 @@ const getNotifications = async (req, res) => {
   }
 };
 
+// GET /api/notifications/unread-count — how many unread notifications I have.
+const getUnreadNotificationCount = async (req, res) => {
+  try {
+    const count = await Notification.countDocuments({
+      recipient: req.userId,
+      isRead: false,
+    });
+    res.json({ count });
+  } catch (error) {
+    res.status(500).json({ message: 'Something went wrong', error: error.message });
+  }
+};
+
 // POST /api/notifications/read — mark all my notifications as read.
 const markNotificationsRead = async (req, res) => {
   try {
@@ -79,5 +92,6 @@ module.exports = {
   followUser,
   unfollowUser,
   getNotifications,
+  getUnreadNotificationCount,
   markNotificationsRead,
 };

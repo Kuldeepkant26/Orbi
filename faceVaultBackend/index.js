@@ -12,6 +12,7 @@ const postRoutes = require('./routes/postRoutes');
 const socialRoutes = require('./routes/socialRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const adminRoutes = require('./routes/adminRoutes');
+const reportRoutes = require('./routes/reportRoutes');
 
 const app = express();
 const server = http.createServer(app); // wrap express in a raw http server for socket.io
@@ -34,6 +35,7 @@ app.use('/api/posts', postRoutes);
 app.use('/api/social', socialRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/reports', reportRoutes);
 
 // ── Database ─────────────────────────────────────────────────────────────────
 async function dbConnection() {
@@ -134,6 +136,30 @@ io.on('connection', (socket) => {
       const receiverSocket = onlineUsers.get(receiverId);
       if (receiverSocket) io.to(receiverSocket).emit('message_deleted', message);
       socket.emit('message_deleted', message);
+    } catch (err) {
+      socket.emit('error', { message: err.message });
+    }
+  });
+
+  // ── React to a message ───────────────────────────────────────────────────
+  // Either participant can react. emoji = '' removes the user's reaction.
+  socket.on('react_message', async ({ messageId, emoji, otherUserId }) => {
+    try {
+      const target = otherUserId;
+      const message = await Message.findById(messageId);
+      if (!message) return socket.emit('error', { message: 'Not found' });
+
+      // Replace this user's existing reaction (one per user).
+      message.reactions = (message.reactions || []).filter(
+        r => String(r.user) !== String(userId)
+      );
+      if (emoji) message.reactions.push({ user: userId, emoji });
+      await message.save();
+
+      // Notify both sides so the reaction shows live.
+      const otherSocket = onlineUsers.get(target);
+      if (otherSocket) io.to(otherSocket).emit('message_reacted', message);
+      socket.emit('message_reacted', message);
     } catch (err) {
       socket.emit('error', { message: err.message });
     }

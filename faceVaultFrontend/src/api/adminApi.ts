@@ -17,6 +17,32 @@ export type AdminUser = {
   isBanned: boolean;
   banReason?: string;
   banExpires?: string | null;
+  isDeleted?: boolean;
+  createdAt: string;
+};
+
+// Detailed user view (admin user-detail screen).
+export type AdminUserDetail = AdminUser & {
+  bio?: string;
+  postsCount: number;
+  followersCount: number;
+  followingCount: number;
+};
+
+// A user-submitted report (admin view, reporter populated).
+export type AdminReport = {
+  _id: string;
+  reporter: {
+    _id: string;
+    name?: string;
+    username?: string;
+    email?: string;
+    avatarUrl?: string;
+  } | null;
+  category: string;
+  message: string;
+  status: 'open' | 'resolved';
+  adminReply: string;
   createdAt: string;
 };
 
@@ -117,5 +143,70 @@ export async function apiAdminDeletePost(
   if (!res.ok) {
     const data = await res.json();
     throw new Error(data.message || 'Failed to delete post');
+  }
+}
+
+// ── User detail + soft delete / restore ──────────────────────────────────────
+export async function apiAdminUserDetail(
+  token: string,
+  userId: string,
+): Promise<AdminUserDetail> {
+  const res = await fetch(`${BASE_URL}/users/${userId}`, {
+    headers: authHeaders(token),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to load user');
+  return data;
+}
+
+export async function apiAdminDeleteUser(
+  token: string,
+  userId: string,
+): Promise<void> {
+  const res = await fetch(`${BASE_URL}/users/${userId}/delete`, {
+    method: 'POST',
+    headers: authHeaders(token),
+  });
+  if (!res.ok) {
+    const data = await res.json();
+    throw new Error(data.message || 'Failed to delete account');
+  }
+}
+
+export async function apiAdminRestoreUser(
+  token: string,
+  userId: string,
+): Promise<void> {
+  const res = await fetch(`${BASE_URL}/users/${userId}/restore`, {
+    method: 'POST',
+    headers: authHeaders(token),
+  });
+  if (!res.ok) {
+    const data = await res.json();
+    throw new Error(data.message || 'Failed to restore account');
+  }
+}
+
+// ── Reports (admin) ──────────────────────────────────────────────────────────
+export async function apiAdminListReports(token: string): Promise<AdminReport[]> {
+  const res = await fetch(`${BASE_URL}/reports`, { headers: authHeaders(token) });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to load reports');
+  return data;
+}
+
+export async function apiAdminReplyReport(
+  token: string,
+  reportId: string,
+  reply: string,
+): Promise<void> {
+  const res = await fetch(`${BASE_URL}/reports/${reportId}/reply`, {
+    method: 'POST',
+    headers: authHeaders(token),
+    body: JSON.stringify({ reply }),
+  });
+  if (!res.ok) {
+    const data = await res.json();
+    throw new Error(data.message || 'Failed to send reply');
   }
 }

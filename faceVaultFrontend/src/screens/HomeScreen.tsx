@@ -15,9 +15,7 @@ import { AppStackParamList } from '../../App';
 import { useAuth } from '../context/AuthContext';
 import { apiFetchFeed, apiLikePost, Post } from '../api/postsApi';
 import PostCard from '../components/PostCard';
-import OrbiLogo from '../components/OrbiLogo';
-import Icon from '../components/Icon';
-import SideMenu from '../components/SideMenu';
+import OrbiHeader from '../components/OrbiHeader';
 import { FeedSkeleton } from '../components/skeletons';
 import { colors } from '../theme/colors';
 import { spacing } from '../theme/spacing';
@@ -39,7 +37,6 @@ export default function HomeScreen() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState('');
-  const [menuOpen, setMenuOpen] = useState(false);
 
   // Load the first page (or reload on pull-to-refresh).
   const loadFeed = useCallback(async () => {
@@ -95,23 +92,15 @@ export default function HomeScreen() {
   if (loading) {
     return (
       <SafeAreaView style={styles.safe} edges={['top']}>
-        <TopBar
-          onOpenMessages={() => navigation.navigate('Users')}
-          onOpenMenu={() => setMenuOpen(true)}
-        />
+        <OrbiHeader />
         <FeedSkeleton />
-        <SideMenu visible={menuOpen} onClose={() => setMenuOpen(false)} />
       </SafeAreaView>
     );
   }
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <TopBar
-        onOpenMessages={() => navigation.navigate('Users')}
-        onOpenMenu={() => setMenuOpen(true)}
-      />
-      <SideMenu visible={menuOpen} onClose={() => setMenuOpen(false)} />
+      <OrbiHeader />
 
       <FlatList
         data={posts}
@@ -174,50 +163,10 @@ export default function HomeScreen() {
   );
 }
 
-// The top bar shown above the feed.
-function TopBar({
-  onOpenMessages,
-  onOpenMenu,
-}: {
-  onOpenMessages: () => void;
-  onOpenMenu: () => void;
-}) {
-  return (
-    <View style={styles.topBar}>
-      <OrbiLogo size={30} />
-      <View style={styles.topBarRight}>
-        <TouchableOpacity onPress={onOpenMessages} style={styles.dmBtn}>
-          <Icon name="paper-plane-outline" size={24} color={colors.ink} />
-        </TouchableOpacity>
-        <TouchableOpacity onPress={onOpenMenu} style={styles.dmBtn}>
-          <Icon name="menu-outline" size={26} color={colors.ink} />
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: colors.background,
-  },
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
-  },
-  topBarRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  dmBtn: {
-    padding: spacing.xs,
-    marginLeft: spacing.sm,
   },
   center: {
     flex: 1,

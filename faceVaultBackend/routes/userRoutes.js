@@ -5,6 +5,7 @@ const {
   getAllUsers,
   getProfile,
   updateMyProfile,
+  getUnreadMessageCount,
   getMessages,
   sendMessage,
   editMessage,
@@ -19,6 +20,8 @@ router.put('/me', updateMyProfile);                    // update my profile (ava
 
 // Messaging (kept as-is). These literal "messages" paths must be declared
 // before the "/:userId/profile" param route so they aren't captured by it.
+// "/messages/unread-count" must come BEFORE "/messages/:otherUserId".
+router.get('/messages/unread-count', getUnreadMessageCount); // unread DM badge
 router.get('/messages/:otherUserId', getMessages);     // get conversation
 router.post('/messages', sendMessage);                 // send a message
 router.put('/messages/:messageId', editMessage);       // edit a message

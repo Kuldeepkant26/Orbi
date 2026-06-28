@@ -101,6 +101,18 @@ export async function apiFetchNotifications(
   return data;
 }
 
+// GET my unread notification count (for the badge).
+export async function apiFetchUnreadNotificationCount(
+  token: string,
+): Promise<number> {
+  const res = await fetch(`${NOTIF_URL}/unread-count`, {
+    headers: authHeaders(token),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to load count');
+  return data.count || 0;
+}
+
 // POST mark all my notifications as read.
 export async function apiMarkNotificationsRead(token: string): Promise<void> {
   const res = await fetch(`${NOTIF_URL}/read`, {

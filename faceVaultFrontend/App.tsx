@@ -6,6 +6,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { SocketProvider } from './src/context/SocketContext';
 import { CallProvider, useCall } from './src/context/CallContext';
+import { BadgeProvider } from './src/context/BadgeContext';
 import LoginScreen from './src/screens/LoginScreen';
 import SignupScreen from './src/screens/SignupScreen';
 import VerifyOtpScreen from './src/screens/VerifyOtpScreen';
@@ -18,6 +19,10 @@ import PostDetailScreen from './src/screens/PostDetailScreen';
 import CommentsScreen from './src/screens/CommentsScreen';
 import ManagePeopleScreen from './src/screens/ManagePeopleScreen';
 import ManagePostsScreen from './src/screens/ManagePostsScreen';
+import AdminUserDetailScreen from './src/screens/AdminUserDetailScreen';
+import AdminReportsScreen from './src/screens/AdminReportsScreen';
+import ReportIssueScreen from './src/screens/ReportIssueScreen';
+import MyReportsScreen from './src/screens/MyReportsScreen';
 import IncomingCallScreen from './src/screens/IncomingCallScreen';
 import VideoCallScreen from './src/screens/VideoCallScreen';
 import OrbiLogo from './src/components/OrbiLogo';
@@ -47,6 +52,11 @@ export type AppStackParamList = {
   // Superadmin-only moderation screens.
   ManagePeople: undefined;
   ManagePosts: undefined;
+  AdminUserDetail: { userId: string };
+  AdminReports: undefined;
+  // Reports (any user).
+  ReportIssue: undefined;
+  MyReports: undefined;
 };
 
 // ── Stacks ────────────────────────────────────────────────────────────────────
@@ -119,6 +129,26 @@ function AppNavigator() {
         component={ManagePostsScreen}
         options={{ title: 'Manage Posts' }}
       />
+      <AppStack.Screen
+        name="AdminUserDetail"
+        component={AdminUserDetailScreen}
+        options={{ title: 'Manage User' }}
+      />
+      <AppStack.Screen
+        name="AdminReports"
+        component={AdminReportsScreen}
+        options={{ title: 'Reports' }}
+      />
+      <AppStack.Screen
+        name="ReportIssue"
+        component={ReportIssueScreen}
+        options={{ title: 'Report an Issue' }}
+      />
+      <AppStack.Screen
+        name="MyReports"
+        component={MyReportsScreen}
+        options={{ title: 'My Reports' }}
+      />
     </AppStack.Navigator>
   );
 }
@@ -186,9 +216,11 @@ export default function App() {
     <SafeAreaProvider>
       <AuthProvider>
         <SocketProvider>
-          <CallProvider>
-            <RootNavigator />
-          </CallProvider>
+          <BadgeProvider>
+            <CallProvider>
+              <RootNavigator />
+            </CallProvider>
+          </BadgeProvider>
         </SocketProvider>
       </AuthProvider>
     </SafeAreaProvider>
