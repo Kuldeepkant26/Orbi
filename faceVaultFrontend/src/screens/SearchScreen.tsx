@@ -6,7 +6,6 @@ import {
   FlatList,
   TouchableOpacity,
   StyleSheet,
-  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -16,6 +15,7 @@ import { useAuth } from '../context/AuthContext';
 import { apiFetchUsers, UserItem } from '../api/usersApi';
 import Avatar from '../components/Avatar';
 import Icon from '../components/Icon';
+import { ListSkeleton } from '../components/skeletons';
 import { colors } from '../theme/colors';
 import { spacing, radius } from '../theme/spacing';
 
@@ -77,9 +77,7 @@ export default function SearchScreen() {
       </View>
 
       {loading ? (
-        <View style={styles.center}>
-          <ActivityIndicator color={colors.ink} />
-        </View>
+        <ListSkeleton rows={8} />
       ) : (
         <FlatList
           data={filtered}

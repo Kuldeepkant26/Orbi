@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, StyleSheet, ActivityIndicator, ScrollView } from 'react-native';
+import { View, StyleSheet, ScrollView } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { AppStackParamList } from '../../App';
 import { useAuth } from '../context/AuthContext';
 import { apiFetchPost, apiLikePost, Post } from '../api/postsApi';
 import PostCard from '../components/PostCard';
+import { PostDetailSkeleton } from '../components/skeletons';
 import { colors } from '../theme/colors';
 
 // Shows a single post on its own screen (reached by tapping a profile grid tile
@@ -40,8 +41,8 @@ export default function PostDetailScreen({ route, navigation }: Props) {
 
   if (loading || !post) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator color={colors.ink} />
+      <View style={styles.container}>
+        <PostDetailSkeleton />
       </View>
     );
   }

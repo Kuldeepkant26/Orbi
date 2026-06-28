@@ -5,7 +5,6 @@ import {
   FlatList,
   TouchableOpacity,
   StyleSheet,
-  ActivityIndicator,
   RefreshControl,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -13,6 +12,7 @@ import { AppStackParamList } from '../../App';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
 import { apiFetchUsers, UserItem } from '../api/usersApi';
+import { ListSkeleton } from '../components/skeletons';
 
 type Props = NativeStackScreenProps<AppStackParamList, 'Users'>;
 
@@ -78,8 +78,8 @@ export default function UsersScreen({ navigation }: Props) {
 
   if (loading) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color="#4F46E5" />
+      <View style={styles.container}>
+        <ListSkeleton rows={8} />
       </View>
     );
   }
@@ -147,15 +147,6 @@ export default function UsersScreen({ navigation }: Props) {
       />
     </View>
   );
-}
-
-// Avatar colours based on the first letter
-const AVATAR_COLORS = [
-  '#4F46E5', '#0EA5E9', '#10B981', '#F59E0B', '#EF4444',
-  '#8B5CF6', '#EC4899', '#14B8A6',
-];
-function getColor(name: string) {
-  return AVATAR_COLORS[name.charCodeAt(0) % AVATAR_COLORS.length];
 }
 
 const styles = StyleSheet.create({

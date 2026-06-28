@@ -18,6 +18,7 @@ import PostCard from '../components/PostCard';
 import OrbiLogo from '../components/OrbiLogo';
 import Icon from '../components/Icon';
 import SideMenu from '../components/SideMenu';
+import { FeedSkeleton } from '../components/skeletons';
 import { colors } from '../theme/colors';
 import { spacing } from '../theme/spacing';
 
@@ -98,9 +99,7 @@ export default function HomeScreen() {
           onOpenMessages={() => navigation.navigate('Users')}
           onOpenMenu={() => setMenuOpen(true)}
         />
-        <View style={styles.center}>
-          <ActivityIndicator color={colors.ink} />
-        </View>
+        <FeedSkeleton />
         <SideMenu visible={menuOpen} onClose={() => setMenuOpen(false)} />
       </SafeAreaView>
     );

@@ -20,6 +20,7 @@ import {
 } from '../api/postsApi';
 import Avatar from '../components/Avatar';
 import Icon from '../components/Icon';
+import { CommentsSkeleton } from '../components/skeletons';
 import { colors } from '../theme/colors';
 import { spacing } from '../theme/spacing';
 import { timeAgo } from '../utils/timeAgo';
@@ -74,9 +75,7 @@ export default function CommentsScreen({ route }: Props) {
       keyboardVerticalOffset={90}>
 
       {loading ? (
-        <View style={styles.center}>
-          <ActivityIndicator color={colors.ink} />
-        </View>
+        <CommentsSkeleton />
       ) : (
         <FlatList
           data={comments}

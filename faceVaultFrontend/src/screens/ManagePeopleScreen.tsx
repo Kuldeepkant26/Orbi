@@ -18,6 +18,7 @@ import {
   AdminUser,
 } from '../api/adminApi';
 import Avatar from '../components/Avatar';
+import { ListSkeleton } from '../components/skeletons';
 import { colors } from '../theme/colors';
 import { spacing, radius } from '../theme/spacing';
 
@@ -107,8 +108,8 @@ export default function ManagePeopleScreen() {
 
   if (loading) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator color={colors.ink} />
+      <View style={styles.container}>
+        <ListSkeleton rows={8} />
       </View>
     );
   }

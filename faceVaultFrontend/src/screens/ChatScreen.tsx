@@ -8,7 +8,6 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
-  ActivityIndicator,
   Alert,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -18,6 +17,7 @@ import { useSocket } from '../context/SocketContext';
 import { apiFetchMessages, Message } from '../api/usersApi';
 import { apiFetchProfile, Profile } from '../api/socialApi';
 import Avatar from '../components/Avatar';
+import { ChatSkeleton } from '../components/skeletons';
 
 type Props = NativeStackScreenProps<AppStackParamList, 'Chat'>;
 
@@ -307,8 +307,8 @@ export default function ChatScreen({ route, navigation }: Props) {
 
   if (loading) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color="#4F46E5" />
+      <View style={styles.container}>
+        <ChatSkeleton />
       </View>
     );
   }

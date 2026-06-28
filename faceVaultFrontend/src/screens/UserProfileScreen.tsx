@@ -4,7 +4,6 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  ActivityIndicator,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { AppStackParamList } from '../../App';
@@ -12,6 +11,7 @@ import { useAuth } from '../context/AuthContext';
 import { apiFetchProfile, apiToggleFollow, Profile } from '../api/socialApi';
 import { apiFetchUserPosts, Post } from '../api/postsApi';
 import ProfileView from '../components/ProfileView';
+import { ProfileSkeleton } from '../components/skeletons';
 import { colors } from '../theme/colors';
 import { spacing, radius } from '../theme/spacing';
 
@@ -88,8 +88,8 @@ export default function UserProfileScreen({ route, navigation }: Props) {
 
   if (loading || !profile) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator color={colors.ink} />
+      <View style={styles.container}>
+        <ProfileSkeleton />
       </View>
     );
   }
@@ -122,6 +122,10 @@ export default function UserProfileScreen({ route, navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
   center: {
     flex: 1,
     alignItems: 'center',

@@ -4,7 +4,6 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  ActivityIndicator,
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -16,6 +15,7 @@ import { apiFetchProfile, Profile } from '../api/socialApi';
 import { apiFetchUserPosts, Post } from '../api/postsApi';
 import ProfileView from '../components/ProfileView';
 import Icon from '../components/Icon';
+import { ProfileSkeleton } from '../components/skeletons';
 import { colors } from '../theme/colors';
 import { spacing, radius } from '../theme/spacing';
 
@@ -75,9 +75,7 @@ export default function ProfileScreen() {
       </View>
 
       {loading || !profile ? (
-        <View style={styles.center}>
-          <ActivityIndicator color={colors.ink} />
-        </View>
+        <ProfileSkeleton />
       ) : (
         <ProfileView
           profile={profile}

@@ -6,7 +6,6 @@ import {
   Image,
   TouchableOpacity,
   StyleSheet,
-  ActivityIndicator,
   Alert,
 } from 'react-native';
 import { useAuth } from '../context/AuthContext';
@@ -17,6 +16,7 @@ import {
   AdminPost,
 } from '../api/adminApi';
 import Avatar from '../components/Avatar';
+import { ManagePostsSkeleton } from '../components/skeletons';
 import { colors } from '../theme/colors';
 import { spacing, radius } from '../theme/spacing';
 import { timeAgo } from '../utils/timeAgo';
@@ -78,8 +78,8 @@ export default function ManagePostsScreen() {
 
   if (loading) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator color={colors.ink} />
+      <View style={styles.container}>
+        <ManagePostsSkeleton />
       </View>
     );
   }

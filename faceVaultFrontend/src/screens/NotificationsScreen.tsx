@@ -5,7 +5,6 @@ import {
   FlatList,
   TouchableOpacity,
   StyleSheet,
-  ActivityIndicator,
   RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -20,6 +19,7 @@ import {
   AppNotification,
 } from '../api/socialApi';
 import Avatar from '../components/Avatar';
+import { ListSkeleton } from '../components/skeletons';
 import { colors } from '../theme/colors';
 import { spacing } from '../theme/spacing';
 import { timeAgo } from '../utils/timeAgo';
@@ -102,9 +102,7 @@ export default function NotificationsScreen() {
       </View>
 
       {loading ? (
-        <View style={styles.center}>
-          <ActivityIndicator color={colors.ink} />
-        </View>
+        <ListSkeleton rows={7} />
       ) : (
         <FlatList
           data={items}
