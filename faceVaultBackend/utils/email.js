@@ -1,30 +1,22 @@
-const { Resend } = require('resend');
-
-// ── Email sending (Resend) ──────────────────────────────────────────────────
+// ── Email sending (Brevo) ────────────────────────────────────────────────────
 //
-// We use Resend to email signup OTP codes. The API key and "from" address come
-// from environment variables (.env):
-//   RESEND_API_KEY  → your Resend API key (starts with "re_...")
-//   EMAIL_FROM      → the sender, e.g. "Orbi <onboarding@resend.dev>"
+// We use Brevo (https://www.brevo.com) to email signup OTP codes. Unlike a
+// domain-based sender, Brevo lets you verify a SINGLE sender email (e.g. your
+// own Gmail) and then send to ANY recipient — no domain purchase needed.
 //
-// NOTE: with Resend's test sender (onboarding@resend.dev) emails only deliver
-// to your own Resend account email. Verify a domain in Resend to email anyone.
+// Environment variables (.env):
+//   BREVO_API_KEY    → your Brevo API key (Brevo dashboard → SMTP & API → API Keys)
+//   EMAIL_FROM       → the verified sender address, e.g. "you@gmail.com"
+//   EMAIL_FROM_NAME  → the display name shown to recipients (default "Orbi")
+//
+// We call Brevo's REST API directly with fetch (built into Node 20+), so there's
+// no SDK to install. If the API key is missing we throw a clear error instead of
+// crashing the server.
 
-const FROM = process.env.EMAIL_FROM || 'Orbi <onboarding@resend.dev>';
+const BREVO_URL = 'https://api.brevo.com/v3/smtp/email';
 
-// Create the Resend client lazily (only when we actually send), so the server
-// can still boot if RESEND_API_KEY isn't set — we just fail the send with a
-// clear message instead of crashing on startup.
-let resendClient = null;
-function getResend() {
-  if (!process.env.RESEND_API_KEY) {
-    throw new Error('Email is not configured (RESEND_API_KEY is missing).');
-  }
-  if (!resendClient) {
-    resendClient = new Resend(process.env.RESEND_API_KEY);
-  }
-  return resendClient;
-}
+const FROM_EMAIL = process.env.EMAIL_FROM || '';
+const FROM_NAME = process.env.EMAIL_FROM_NAME || 'Orbi';
 
 // Generate a random 6-digit code as a string (e.g. "042913").
 function generateOtp() {
@@ -45,18 +37,41 @@ function otpEmailHtml(code) {
   </div>`;
 }
 
-// Send the OTP code to a user's email.
+// Send the OTP code to a user's email via Brevo.
 async function sendOtpEmail(to, code) {
-  const { error } = await getResend().emails.send({
-    from: FROM,
-    to,
-    subject: `${code} is your Orbi verification code`,
-    html: otpEmailHtml(code),
+  if (!process.env.BREVO_API_KEY) {
+    throw new Error('Email is not configured (BREVO_API_KEY is missing).');
+  }
+  if (!FROM_EMAIL) {
+    throw new Error('Email is not configured (EMAIL_FROM is missing).');
+  }
+
+  const res = await fetch(BREVO_URL, {
+    method: 'POST',
+    headers: {
+      'api-key': process.env.BREVO_API_KEY,
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    },
+    body: JSON.stringify({
+      sender: { name: FROM_NAME, email: FROM_EMAIL },
+      to: [{ email: to }],
+      subject: `${code} is your Orbi verification code`,
+      htmlContent: otpEmailHtml(code),
+    }),
   });
 
-  if (error) {
-    // Surface a clear error so the controller can respond appropriately.
-    throw new Error(error.message || 'Failed to send verification email');
+  if (!res.ok) {
+    // Brevo returns a JSON error body; surface its message so the controller
+    // can respond clearly.
+    let detail = '';
+    try {
+      const data = await res.json();
+      detail = data.message || JSON.stringify(data);
+    } catch {
+      detail = `HTTP ${res.status}`;
+    }
+    throw new Error(`Failed to send verification email: ${detail}`);
   }
 }
 
