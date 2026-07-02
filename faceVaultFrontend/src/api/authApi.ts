@@ -108,6 +108,36 @@ export async function apiResendOtp(email: string): Promise<{ message: string }> 
   return data;
 }
 
+// Ask the server to email a password reset code. Always resolves with a
+// generic message (the backend doesn't reveal whether the email exists).
+export async function apiForgotPassword(email: string): Promise<{ message: string }> {
+  const res = await fetch(`${BASE_URL}/forgot-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Could not send reset code');
+  return data;
+}
+
+// Confirm the reset code and set a new password. On success returns a token,
+// same shape as login, so the app can log the user straight in.
+export async function apiResetPassword(
+  email: string,
+  code: string,
+  newPassword: string,
+): Promise<AuthResponse> {
+  const res = await fetch(`${BASE_URL}/reset-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, code, newPassword }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Could not reset password');
+  return data as AuthResponse;
+}
+
 // Small helpers so screens can check which kind of result they got.
 export function isVerificationResponse(
   r: LoginResult,

@@ -1,7 +1,7 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
-const { generateOtp, sendOtpEmail } = require('../utils/email');
+const { generateOtp, sendOtpEmail, sendPasswordResetEmail } = require('../utils/email');
 
 // How long an OTP code stays valid.
 const OTP_TTL_MINUTES = 10;
@@ -54,6 +54,18 @@ async function issueOtp(user) {
     user.otpExpires = new Date(Date.now() + OTP_TTL_MINUTES * 60 * 1000);
     await user.save();
     await sendOtpEmail(user.email, code);
+}
+
+// Same as issueOtp, but emails the "reset your password" template instead of
+// the "verify your account" one. Reuses the same otpHash/otpExpires fields —
+// a reset code and a pending signup-verification code are never needed at the
+// same time for one account (reset only applies to already-verified users).
+async function issuePasswordResetOtp(user) {
+    const code = generateOtp();
+    user.otpHash = await bcrypt.hash(code, 10);
+    user.otpExpires = new Date(Date.now() + OTP_TTL_MINUTES * 60 * 1000);
+    await user.save();
+    await sendPasswordResetEmail(user.email, code);
 }
 
 // ── Signup ────────────────────────────────────────────────────────────────────
@@ -174,6 +186,67 @@ const resendOtp = async (req, res) => {
     }
 };
 
+// ── Forgot password ───────────────────────────────────────────────────────────
+// Emails a reset code to a verified account. Responds the same way whether or
+// not the email exists, so login attempts can't be used to enumerate accounts.
+const forgotPassword = async (req, res) => {
+    try {
+        const { email } = req.body;
+        if (!email) return res.status(400).json({ message: 'Email is required' });
+
+        const user = await User.findOne({ email });
+        if (user && user.isVerified) {
+            await issuePasswordResetOtp(user);
+        }
+
+        res.status(200).json({
+            message: 'If an account exists for that email, a reset code has been sent.',
+        });
+    } catch (error) {
+        res.status(500).json({ message: 'Something went wrong', error: error.message });
+    }
+};
+
+// ── Reset password ───────────────────────────────────────────────────────────
+// Verifies the reset code and sets a new password. Returns a token so the app
+// can log the user straight in afterward.
+const resetPassword = async (req, res) => {
+    try {
+        const { email, code, newPassword } = req.body;
+        if (!email || !code || !newPassword) {
+            return res.status(400).json({ message: 'Email, code, and new password are required' });
+        }
+        if (newPassword.length < 6) {
+            return res.status(400).json({ message: 'Password must be at least 6 characters' });
+        }
+
+        const user = await User.findOne({ email });
+        if (!user) return res.status(404).json({ message: 'Account not found' });
+
+        if (!user.otpHash || !user.otpExpires || user.otpExpires < new Date()) {
+            return res.status(400).json({ message: 'Code expired. Please request a new one.' });
+        }
+
+        const isMatch = await bcrypt.compare(String(code), user.otpHash);
+        if (!isMatch) {
+            return res.status(400).json({ message: 'Incorrect code. Please try again.' });
+        }
+
+        user.password = await bcrypt.hash(newPassword, 10);
+        user.otpHash = null;
+        user.otpExpires = null;
+        await user.save();
+
+        res.status(200).json({
+            message: 'Password reset successful',
+            token: signToken(user),
+            user: publicUser(user),
+        });
+    } catch (error) {
+        res.status(500).json({ message: 'Something went wrong', error: error.message });
+    }
+};
+
 // ── Login ─────────────────────────────────────────────────────────────────────
 const login = async (req, res) => {
     try {
@@ -254,4 +327,4 @@ const login = async (req, res) => {
     }
 };
 
-module.exports = { signup, verifyOtp, resendOtp, login };
+module.exports = { signup, verifyOtp, resendOtp, login, forgotPassword, resetPassword };

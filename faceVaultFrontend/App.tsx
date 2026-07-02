@@ -10,6 +10,8 @@ import { BadgeProvider } from './src/context/BadgeContext';
 import LoginScreen from './src/screens/LoginScreen';
 import SignupScreen from './src/screens/SignupScreen';
 import VerifyOtpScreen from './src/screens/VerifyOtpScreen';
+import ForgotPasswordScreen from './src/screens/ForgotPasswordScreen';
+import ResetPasswordScreen from './src/screens/ResetPasswordScreen';
 import MainTabs from './src/navigation/MainTabs';
 import UsersScreen from './src/screens/UsersScreen';
 import ChatScreen from './src/screens/ChatScreen';
@@ -40,6 +42,9 @@ export type AuthStackParamList = {
   Signup: undefined;
   // The email we just sent a code to is passed along to the verify screen.
   VerifyOtp: { email: string };
+  ForgotPassword: undefined;
+  // The email a reset code was sent to, passed along to enter code + new password.
+  ResetPassword: { email: string };
 };
 
 // The logged-in app: a bottom-tab navigator (MainTabs) plus detail screens that
@@ -80,6 +85,8 @@ function AuthNavigator() {
       <AuthStack.Screen name="Login" component={LoginScreen} />
       <AuthStack.Screen name="Signup" component={SignupScreen} />
       <AuthStack.Screen name="VerifyOtp" component={VerifyOtpScreen} />
+      <AuthStack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+      <AuthStack.Screen name="ResetPassword" component={ResetPasswordScreen} />
     </AuthStack.Navigator>
   );
 }

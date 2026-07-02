@@ -31,7 +31,10 @@ export type AppNotification = {
   recipient: string;
   actor: { _id: string; name: string; username?: string; avatarUrl?: string };
   type: 'follow' | 'like' | 'comment';
-  post?: string;
+  post?: { _id: string; imageUrl?: string } | null;
+  // Whether I already follow the actor — lets follow-notification rows show
+  // "Follow back" vs "Following" without a separate lookup per row.
+  isFollowingActor: boolean;
   isRead: boolean;
   createdAt: string;
 };

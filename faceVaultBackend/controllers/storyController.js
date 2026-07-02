@@ -28,12 +28,20 @@ const createStory = async (req, res) => {
 };
 
 // GET /api/stories/feed — the story tray: every author who has an ACTIVE story,
-// with whether I've seen all of theirs. Stories are public, so this returns all
-// non-expired stories grouped by author. My own stories come first.
+// with whether I've seen all of theirs. Only shows stories from people I follow
+// (plus my own). My own stories come first.
 const getStoryFeed = async (req, res) => {
   try {
     const now = new Date();
-    const stories = await Story.find({ expiresAt: { $gt: now } })
+
+    // Same "me + everyone I follow" scoping used by the posts feed.
+    const me = await User.findById(req.userId).select('following');
+    const authorIds = [req.userId, ...(me?.following || [])];
+
+    const stories = await Story.find({
+      expiresAt: { $gt: now },
+      author: { $in: authorIds },
+    })
       .sort({ createdAt: 1 })
       .populate('author', 'name username avatarUrl');
 

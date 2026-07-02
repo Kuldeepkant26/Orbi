@@ -37,8 +37,9 @@ function otpEmailHtml(code) {
   </div>`;
 }
 
-// Send the OTP code to a user's email via Brevo.
-async function sendOtpEmail(to, code) {
+// Shared Brevo send call — used for both signup verification and password
+// reset emails, which only differ in subject line and intro copy.
+async function sendEmail(to, subject, htmlContent, failureContext) {
   if (!process.env.BREVO_API_KEY) {
     throw new Error('Email is not configured (BREVO_API_KEY is missing).');
   }
@@ -56,8 +57,8 @@ async function sendOtpEmail(to, code) {
     body: JSON.stringify({
       sender: { name: FROM_NAME, email: FROM_EMAIL },
       to: [{ email: to }],
-      subject: `${code} is your Orbi verification code`,
-      htmlContent: otpEmailHtml(code),
+      subject,
+      htmlContent,
     }),
   });
 
@@ -71,8 +72,43 @@ async function sendOtpEmail(to, code) {
     } catch {
       detail = `HTTP ${res.status}`;
     }
-    throw new Error(`Failed to send verification email: ${detail}`);
+    throw new Error(`Failed to send ${failureContext} email: ${detail}`);
   }
 }
 
-module.exports = { generateOtp, sendOtpEmail };
+// Send the OTP code to a user's email via Brevo.
+async function sendOtpEmail(to, code) {
+  await sendEmail(
+    to,
+    `${code} is your Orbi verification code`,
+    otpEmailHtml(code),
+    'verification',
+  );
+}
+
+// A password-reset variant of the OTP template — same layout, different copy
+// so users don't confuse it with account verification.
+function passwordResetEmailHtml(code) {
+  return `
+  <div style="font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; max-width: 440px; margin: 0 auto; padding: 32px 24px; color: #0A0A0A;">
+    <h1 style="font-size: 24px; font-weight: 800; letter-spacing: 0.5px; margin: 0 0 8px;">Orbi</h1>
+    <p style="font-size: 15px; color: #6B6B6B; margin: 0 0 24px;">Use this code to reset your password.</p>
+    <div style="background: #FAFAF8; border: 1px solid #ECECEC; border-radius: 12px; padding: 24px; text-align: center;">
+      <p style="font-size: 13px; color: #6B6B6B; margin: 0 0 8px;">Your password reset code</p>
+      <p style="font-size: 36px; font-weight: 800; letter-spacing: 8px; margin: 0;">${code}</p>
+    </div>
+    <p style="font-size: 13px; color: #9A9A9A; margin: 24px 0 0;">This code expires in 10 minutes. If you didn't request it, you can ignore this email — your password will not be changed.</p>
+  </div>`;
+}
+
+// Send the password-reset OTP code to a user's email via Brevo.
+async function sendPasswordResetEmail(to, code) {
+  await sendEmail(
+    to,
+    `${code} is your Orbi password reset code`,
+    passwordResetEmailHtml(code),
+    'password reset',
+  );
+}
+
+module.exports = { generateOtp, sendOtpEmail, sendPasswordResetEmail };

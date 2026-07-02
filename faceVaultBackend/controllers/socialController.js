@@ -51,12 +51,24 @@ const unfollowUser = async (req, res) => {
 // GET /api/notifications — my notifications, newest first.
 const getNotifications = async (req, res) => {
   try {
-    const notifications = await Notification.find({ recipient: req.userId })
-      .sort({ createdAt: -1 })
-      .limit(50)
-      .populate('actor', 'name username avatarUrl');
+    const [notifications, me] = await Promise.all([
+      Notification.find({ recipient: req.userId })
+        .sort({ createdAt: -1 })
+        .limit(50)
+        .populate('actor', 'name username avatarUrl')
+        .populate('post', 'imageUrl'),
+      User.findById(req.userId).select('following'),
+    ]);
 
-    res.json(notifications);
+    // So the app can render a "Follow back" vs "Following" state on follow
+    // notifications without a separate lookup per row.
+    const followingSet = new Set((me?.following || []).map(String));
+    const shaped = notifications.map((n) => ({
+      ...n.toObject(),
+      isFollowingActor: n.actor ? followingSet.has(String(n.actor._id)) : false,
+    }));
+
+    res.json(shaped);
   } catch (error) {
     res.status(500).json({ message: 'Something went wrong', error: error.message });
   }

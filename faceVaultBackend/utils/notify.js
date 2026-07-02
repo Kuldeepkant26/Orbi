@@ -1,4 +1,5 @@
 const Notification = require('../models/Notification');
+const User = require('../models/User');
 
 // Creates a notification document and, if the recipient is currently online,
 // pushes it to them in real time over Socket.IO.
@@ -26,9 +27,20 @@ async function createNotification(req, { recipient, actor, type, post }) {
     const recipientSocket = onlineUsers?.get(String(recipient));
 
     if (io && recipientSocket) {
-      // Populate the actor so the client can show their name/avatar instantly.
-      const populated = await notification.populate('actor', 'name username avatarUrl');
-      io.to(recipientSocket).emit('new_notification', populated);
+      // Populate the same fields the REST list returns, so a live-pushed card
+      // renders identically to one loaded from a fetch (actor + post thumbnail
+      // + whether the recipient already follows the actor back).
+      await notification.populate('actor', 'name username avatarUrl');
+      await notification.populate('post', 'imageUrl');
+      const recipientUser = await User.findById(recipient).select('following');
+      const isFollowingActor = (recipientUser?.following || [])
+        .map(String)
+        .includes(String(actor));
+
+      io.to(recipientSocket).emit('new_notification', {
+        ...notification.toObject(),
+        isFollowingActor,
+      });
     }
   } catch (err) {
     // Real-time delivery is best-effort; the REST list is the source of truth.
